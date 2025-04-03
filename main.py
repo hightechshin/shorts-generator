@@ -67,6 +67,7 @@ def upload_and_generate():
         with open(audio_path, "wb") as f:
             f.write(r_audio.content)
 
+        # 1️⃣ 자막 처리 (14자 단위 줄바꿈)
         lines = textwrap.wrap(text.strip(), width=14)
         subtitles = []
         for i, line in enumerate(lines):
@@ -74,25 +75,24 @@ def upload_and_generate():
             end = start + 3.5
             subtitles.append({"start": start, "end": end, "text": line})
 
+        # 2️⃣ drawtext 필터 생성
         font_path = "NotoSansKR-VF.ttf"
         drawtext_filters = []
         for sub in subtitles:
             alpha_expr = (
-    f"if(lt(t\\,{sub['start']})\\,0\\,"
-    f"if(lt(t\\,{sub['start'] + 0.5})\\,(t-{sub['start']})/0.5\\,"
-    f"if(lt(t\\,{sub['end'] - 0.5})\\,1\\,"
-    f"(1-(t-{sub['end']}+0.5)/0.5)))"
-)
-
+                f"if(lt(t,{sub['start']}),0,"
+                f"if(lt(t,{sub['start']}+0.5),(t-{sub['start']})/0.5,"
+                f"if(lt(t,{sub['end']}-0.5),1,"
+                f"(1-(t-{sub['end']}+0.5)/0.5)))"
+            )
             drawtext = (
-    f"drawtext=fontfile='{font_path}':"
-    f"text='{sub['text']}':"
-    f"fontcolor=white:fontsize=60:x=(w-text_w)/2:y=(h-text_h)/2:"
-    f"alpha='{alpha_expr}':"
-    f"borderw=4:bordercolor=black:box=1:boxcolor=black@0.5:boxborderw=20:"
-    f"enable='between(t,{sub['start']},{sub['end']})'"
-)
-
+                f"drawtext=fontfile='{font_path}':"
+                f"text='{sub['text']}':"
+                f"fontcolor=white:fontsize=60:x=(w-text_w)/2:y=(h-text_h)/2:"
+                f"alpha='{alpha_expr}':"
+                f"borderw=4:bordercolor=black:box=1:boxcolor=black@0.5:boxborderw=20:"
+                f"enable='between(t,{sub['start']},{sub['end']})'"
+            )
             drawtext_filters.append(drawtext)
 
         filterchain = "scale=1080:1920," + ",".join(drawtext_filters)
