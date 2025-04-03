@@ -131,13 +131,14 @@ def upload_and_generate():
 
         generate_srt(text, duration, srt_path)
 
-        command = [
-            "ffmpeg",
-            "-loop", "1", "-i", image_path,
-            "-i", audio_path,
-            "-vf", f"subtitles={srt_path}",
-            "-shortest", "-y", output_path
-        ]
+       command = [
+    "ffmpeg",
+    "-loop", "1", "-i", image_path,
+    "-i", audio_path,
+    "-vf", f"subtitles=filename='{srt_path}'",  # ✅ 이거 한 줄이 핵심
+    "-shortest", "-y", output_path
+]
+
 
         result = subprocess.run(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         print("\n🔧 FFMPEG STDERR:\n", result.stderr.decode())
