@@ -152,14 +152,15 @@ def upload_and_generate():
         print("❌ 예외 발생:", str(e))
         return {"error": str(e)}, 500
 
-if __name__ == "__main__":
-    port = int(os.environ.get("PORT", 10000))
-    app.run(host="0.0.0.0", port=port, debug=True)
+app = Flask(__name__)
 
 @app.route("/")
 def home():
     return "✅ Shorts Generator Flask 서버 실행 중"
 
+if __name__ == "__main__":
+    port = int(os.environ.get("PORT", 10000))
+    app.run(host="0.0.0.0", port=port, debug=True)
 
 
 
