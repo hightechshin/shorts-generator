@@ -152,7 +152,6 @@ def upload_and_generate():
         print("❌ 예외 발생:", str(e))
         return {"error": str(e)}, 500
 
-app = Flask(__name__)
 
 @app.route("/")
 def home():
