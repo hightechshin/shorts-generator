@@ -75,11 +75,11 @@ def upload_and_generate():
             end = start + 3.5
             subtitles.append({"start": start, "end": end, "text": line})
 
-        # 2️⃣ drawtext 필터 생성 (alpha 제거, 쉼표 안정성 확보)
+        # 2️⃣ drawtext 필터 생성 (안정 버전, alpha 제거)
         font_path = "NotoSansKR-VF.ttf"
         drawtext_filters = []
         for sub in subtitles:
-            safe_text = sub['text'].replace("'", "\\'")
+            safe_text = sub['text'].replace("'", "\\'").replace(":", "\\:").replace(",", "\\,")
             drawtext = (
                 f"drawtext=fontfile='{font_path}':"
                 f"text='{safe_text}':"
@@ -110,7 +110,7 @@ def upload_and_generate():
 
         process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         stdout, stderr = process.communicate(timeout=1800)
-        print("\n\U0001f527 FFMPEG STDERR:\n", stderr.decode())
+        print("\n🔧 FFMPEG STDERR:\n", stderr.decode())
 
         if process.returncode != 0:
             return {"error": "FFmpeg failed", "ffmpeg_output": stderr.decode()}, 500
@@ -156,7 +156,8 @@ def upload_and_generate():
 
 @app.route("/")
 def home():
-    return "\u2705 Shorts Generator Flask 서버 실행 중"
+    return "✅ Shorts Generator Flask 서버 실행 중"
+
 
 
 
