@@ -36,7 +36,7 @@ def upload_to_supabase(file_content, file_name, file_type):
     upload_url = f"{SUPABASE_UPLOAD}/{file_name}"
     res = requests.post(upload_url, headers=headers, data=file_content)
     if res.status_code in [200, 201]:
-        return file_name  # return path for signed URL
+        return file_name
     return None
 
 
@@ -68,15 +68,26 @@ def srt_time(seconds):
 
 
 def generate_srt(text, total_duration, srt_path):
-    lines = textwrap.wrap(text.strip(), width=14)
-    num_lines = len(lines)
-    sec_per_line = total_duration / num_lines
+    try:
+        if total_duration <= 0:
+            print("❌ 유효하지 않은 오디오 길이:", total_duration)
+            return
 
-    with open(srt_path, "w", encoding="utf-8") as f:
-        for i, line in enumerate(lines):
-            start = srt_time(i * sec_per_line)
-            end = srt_time((i + 1) * sec_per_line)
-            f.write(f"{i+1}\n{start} --> {end}\n{line}\n\n")
+        lines = textwrap.wrap(text.strip(), width=14)
+        num_lines = len(lines)
+        sec_per_line = total_duration / num_lines if num_lines > 0 else 1
+
+        with open(srt_path, "w", encoding="utf-8") as f:
+            for i, line in enumerate(lines):
+                start = srt_time(i * sec_per_line)
+                end = srt_time((i + 1) * sec_per_line)
+                f.write(f"{i+1}\n{start} --> {end}\n{line}\n\n")
+
+        print("✅ 자막 생성 완료:", srt_path)
+        print("✅ 존재 여부:", os.path.exists(srt_path))
+
+    except Exception as e:
+        print("❌ SRT 생성 중 오류:", e)
 
 
 @app.route("/upload_and_generate", methods=["POST"])
@@ -104,7 +115,8 @@ def upload_and_generate():
         image_path = os.path.join(UPLOAD_FOLDER, image_name)
         audio_path = os.path.join(UPLOAD_FOLDER, audio_name)
         output_path = os.path.join(OUTPUT_FOLDER, video_name)
-        srt_path = os.path.join(UPLOAD_FOLDER, srt_name)
+        srt_path = os.path.abspath(os.path.join(UPLOAD_FOLDER, srt_name))
+        print("📁 SRT 저장 경로:", srt_path)
 
         with open(image_path, "wb") as f:
             f.write(r_img.content)
@@ -112,6 +124,11 @@ def upload_and_generate():
             f.write(r_audio.content)
 
         duration = get_audio_duration(audio_path)
+        print("🔍 오디오 길이 (초):", duration)
+
+        if duration <= 0:
+            return {"error": "Invalid audio duration"}, 400
+
         generate_srt(text, duration, srt_path)
 
         command = [
@@ -173,6 +190,7 @@ def upload_and_generate():
 @app.route("/")
 def home():
     return "✅ Shorts Generator Flask 서버 실행 중"
+
 
 
 
