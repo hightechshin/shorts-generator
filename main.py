@@ -1,24 +1,22 @@
 import os
+import uuid
+import textwrap
 import requests
 import subprocess
-import psutil
-import uuid
 from flask import Flask, request
 from datetime import datetime
+from pydub import AudioSegment
 
+# Flask 앱 초기화
 app = Flask(__name__)
 
-# 📁 폴더 설정
+# 디렉토리 생성
 UPLOAD_FOLDER = "uploads"
 OUTPUT_FOLDER = "outputs"
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 os.makedirs(OUTPUT_FOLDER, exist_ok=True)
 
-# 리소스 상태 로깅
-print(f"Memory available: {psutil.virtual_memory().available / 1024 / 1024} MB")
-print(f"CPU usage: {psutil.cpu_percent()}%")
-
-# 🔐 Supabase 설정
+# Supabase 설정
 SUPABASE_BUCKET = "uploads"
 SUPABASE_BASE = "https://bxrpebzmcgftbnlfdrre.supabase.co/storage/v1/object"
 SUPABASE_PUBLIC = f"{SUPABASE_BASE}/public/{SUPABASE_BUCKET}"
@@ -26,10 +24,36 @@ SUPABASE_UPLOAD = f"{SUPABASE_BASE}/{SUPABASE_BUCKET}"
 SUPABASE_SERVICE_KEY = os.environ['SUPABASE_SERVICE_ROLE']
 SUPABASE_REST = "https://bxrpebzmcgftbnlfdrre.supabase.co/rest/v1"
 
+# 폰트 경로
+FONT_PATH = "NotoSansKR-VF.ttf"
+
 def fix_url(url):
-    if not url:
-        return None
-    return url if url.startswith("http") else f"https:{url}"
+    return url if url and url.startswith("http") else f"https:{url}" if url else None
+
+def sanitize_drawtext(text):
+    return text.strip().replace("'", "\\'").replace(":", "\\:")
+
+def generate_drawtext_filters(text, duration, font_path=FONT_PATH):
+    lines = textwrap.wrap(text.strip(), width=14)
+    filters = []
+    for i, line in enumerate(lines):
+        start = i * 3.5
+        end = start + 3.5
+        alpha_expr = (
+            f"if(lt(t,{start}),0,"
+            f"if(lt(t,{start}+0.5),(t-{start})/0.5,"
+            f"if(lt(t,{end}-0.5),1,(1-(t-{end}+0.5)/0.5)))"
+        )
+        drawtext = (
+            f"drawtext=fontfile='{font_path}':"
+            f"text='{sanitize_drawtext(line)}':"
+            f"fontcolor=white:fontsize=60:x=(w-text_w)/2:y=(h-text_h)/2:"
+            f"alpha='{alpha_expr}':"
+            f"borderw=4:bordercolor=black:box=1:boxcolor=black@0.5:boxborderw=20:"
+            f"enable='between(t,{start},{end})'"
+        )
+        filters.append(drawtext)
+    return "scale=1080:1920," + ",".join(filters)
 
 def upload_to_supabase(file_content, file_name, file_type):
     headers = {
@@ -38,9 +62,23 @@ def upload_to_supabase(file_content, file_name, file_type):
     }
     upload_url = f"{SUPABASE_UPLOAD}/{file_name}"
     res = requests.post(upload_url, headers=headers, data=file_content)
-    if res.status_code in [200, 201]:
-        return f"{SUPABASE_PUBLIC}/{file_name}"
-    return None
+    return file_name if res.status_code in [200, 201] else None
+
+def generate_signed_url(file_path, expires_in=3600):
+    url = f"{SUPABASE_BASE}/sign/{SUPABASE_BUCKET}/{file_path}"
+    res = requests.post(
+        url,
+        headers={
+            "Authorization": f"Bearer {SUPABASE_SERVICE_KEY}",
+            "Content-Type": "application/json"
+        },
+        json={"expiresIn": expires_in}
+    )
+    return res.json().get("signedURL") if res.status_code == 200 else None
+
+def get_audio_duration(filepath):
+    audio = AudioSegment.from_file(filepath)
+    return round(audio.duration_seconds, 2)
 
 @app.route("/upload_and_generate", methods=["POST"])
 def upload_and_generate():
@@ -52,10 +90,8 @@ def upload_and_generate():
         return {"error": "image_url, mp3_url, text are required"}, 400
 
     try:
-        # 이미지 및 오디오 다운로드
         r_img = requests.get(image_url)
         r_audio = requests.get(audio_url)
-
         if r_img.status_code != 200 or r_audio.status_code != 200:
             return {"error": "Failed to download image or audio"}, 400
 
@@ -63,7 +99,6 @@ def upload_and_generate():
         image_name = f"{uid}_bg.jpg"
         audio_name = f"{uid}_audio.mp3"
         video_name = f"{uid}_video.mp4"
-
         image_path = os.path.join(UPLOAD_FOLDER, image_name)
         audio_path = os.path.join(UPLOAD_FOLDER, audio_name)
         output_path = os.path.join(OUTPUT_FOLDER, video_name)
@@ -73,57 +108,36 @@ def upload_and_generate():
         with open(audio_path, "wb") as f:
             f.write(r_audio.content)
 
-        print(f"✔️ Image saved to {image_path}")
-        print(f"✔️ Audio saved to {audio_path}")
+        duration = get_audio_duration(audio_path)
+        filter_str = generate_drawtext_filters(text, duration)
 
-        # 최적화된 ffmpeg 명령어
         command = [
-            "ffmpeg",
-            "-y",
-            "-loop", "1",
-            "-i", image_path,
+            "ffmpeg", "-loop", "1", "-i", image_path,
             "-i", audio_path,
-            "-vf", "scale=512:512",  # 이미지 크기 축소
-            "-t", "59",  # 오디오 길이에 맞춰 59초
-            "-c:v", "libx264",
-            "-pix_fmt", "yuv420p",
-            "-c:a", "aac",
-            "-shortest",
-            "-preset", "fast",  # preset을 fast로 변경
-            "-crf", "30",
-            "-r", "15",
-            "-threads", "2",
-            output_path
+            "-shortest", "-t", str(min(duration, 59)),
+            "-vf", filter_str,
+            "-preset", "ultrafast",
+            "-y", output_path
         ]
+        result = subprocess.run(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        print("\n🔧 FFMPEG STDERR:\n", result.stderr.decode())
 
-        # 비동기 실행
-        process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-        stdout, stderr = process.communicate(timeout=600)  # 타임아웃을 10분으로 설정
-        print("\n🔧 FFMPEG STDERR:\n", stderr.decode())
+        if not os.path.exists(output_path) or os.path.getsize(output_path) < 1000:
+            return {"error": "Video too small. drawtext may have failed."}, 500
 
-        if process.returncode != 0:
-            print(f"❌ FFmpeg failed with error: {stderr.decode()}")
-            return {"error": "FFmpeg failed", "ffmpeg_output": stderr.decode()}, 500
-
-        if not os.path.exists(output_path) or os.path.getsize(output_path) < 1024:
-            print(f"❌ Video generation failed! File size is {os.path.getsize(output_path)} bytes.")
-            return {"error": "Video generation failed, file too small", "size": os.path.getsize(output_path)}, 500
-
-        # Supabase에 비디오 업로드
         with open(output_path, "rb") as f:
-            video_public_url = upload_to_supabase(f.read(), video_name, "video/mp4")
-
-        if not video_public_url:
-            print("❌ Video upload failed.")
+            uploaded_path = upload_to_supabase(f.read(), video_name, "video/mp4")
+        if not uploaded_path:
             return {"error": "Video upload failed"}, 500
 
-        print(f"✔️ Video uploaded to Supabase: {video_public_url}")
+        signed_url = generate_signed_url(uploaded_path)
+        if not signed_url:
+            return {"error": "Signed URL 생성 실패"}, 500
 
-        # DB에 비디오 데이터 저장
         db_data = {
             "image_url": f"{SUPABASE_PUBLIC}/{image_name}",
             "audio_url": f"{SUPABASE_PUBLIC}/{audio_name}",
-            "video_url": video_public_url,
+            "video_url": signed_url,
             "text": text,
             "created_at": datetime.utcnow().isoformat()
         }
@@ -140,18 +154,15 @@ def upload_and_generate():
         )
 
         if res.status_code not in [200, 201]:
-            print(f"❌ DB insert failed: {res.text}")
             return {"error": "DB insert failed", "detail": res.text}, 500
 
-        print(f"✔️ Video data stored in database. Log ID: {res.json()[0]['id']}")
-
         return {
-            "video_url": video_public_url,
+            "video_url": signed_url,
             "log_id": res.json()[0]["id"]
         }
 
     except Exception as e:
-        print(f"❌ Error: {str(e)}")
+        print("❌ 예외 발생:", str(e))
         return {"error": str(e)}, 500
 
 @app.route("/")
