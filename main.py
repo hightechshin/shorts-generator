@@ -64,7 +64,9 @@ def get_audio_duration(filepath):
 
 
 def sanitize_drawtext(text):
+    text = text.strip().strip('"')  # ✅ 바깥쪽 큰따옴표 제거
     return re.sub(r"([\\':])", r"\\\1", text)
+
 
 
 def generate_drawtext_filter(text, font_size=48, line_spacing=10):
