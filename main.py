@@ -125,20 +125,28 @@ def upload_and_generate():
 
         duration = get_audio_duration(audio_path)
         print("🔍 오디오 길이 (초):", duration)
-
         if duration <= 0:
             return {"error": "Invalid audio duration"}, 400
 
         generate_srt(text, duration, srt_path)
 
-       command = [
-    "ffmpeg",
-    "-loop", "1", "-i", image_path,
-    "-i", audio_path,
-    "-vf", f"subtitles=filename='{srt_path}'",  # ✅ 이거 한 줄이 핵심
-    "-shortest", "-y", output_path
-]
+        if not os.path.exists(srt_path):
+            print("❌ 자막 파일이 없음:", srt_path)
+            return {"error": "SRT file missing"}, 500
 
+        # FFmpeg 명령어 구성
+        command = [
+            "ffmpeg",
+            "-loop", "1",
+            "-i", image_path,
+            "-i", audio_path,
+            "-vf", f"subtitles='{srt_path}'",
+            "-shortest",
+            "-y",
+            output_path
+        ]
+
+        print("🧪 FFmpeg 명령어:", " ".join(command))
 
         result = subprocess.run(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         print("\n🔧 FFMPEG STDERR:\n", result.stderr.decode())
@@ -191,6 +199,7 @@ def upload_and_generate():
 @app.route("/")
 def home():
     return "✅ Shorts Generator Flask 서버 실행 중"
+
 
 
 
