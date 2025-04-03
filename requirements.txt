@@ -5,3 +5,4 @@ openai
 moviepy
 ffmpeg-python
 gunicorn==22.0.0
+pydub
