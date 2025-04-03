@@ -6,6 +6,7 @@ import uuid
 import textwrap
 from flask import Flask, request
 from datetime import datetime
+from pydub import AudioSegment
 
 app = Flask(__name__)
 
@@ -22,9 +23,7 @@ SUPABASE_SERVICE_KEY = os.environ['SUPABASE_SERVICE_ROLE']
 SUPABASE_REST = "https://bxrpebzmcgftbnlfdrre.supabase.co/rest/v1"
 
 def fix_url(url):
-    if not url:
-        return None
-    return url if url.startswith("http") else f"https:{url}"
+    return url if url and url.startswith("http") else f"https:{url}" if url else None
 
 def upload_to_supabase(file_content, file_name, file_type):
     headers = {
@@ -33,9 +32,7 @@ def upload_to_supabase(file_content, file_name, file_type):
     }
     upload_url = f"{SUPABASE_UPLOAD}/{file_name}"
     res = requests.post(upload_url, headers=headers, data=file_content)
-    if res.status_code in [200, 201]:
-        return f"{SUPABASE_PUBLIC}/{file_name}"
-    return None
+    return f"{SUPABASE_PUBLIC}/{file_name}" if res.status_code in [200, 201] else None
 
 @app.route("/upload_and_generate", methods=["POST"])
 def upload_and_generate():
@@ -49,7 +46,6 @@ def upload_and_generate():
     try:
         r_img = requests.get(image_url)
         r_audio = requests.get(audio_url)
-
         if r_img.status_code != 200 or r_audio.status_code != 200:
             return {"error": "Failed to download image or audio"}, 400
 
@@ -67,23 +63,33 @@ def upload_and_generate():
         with open(audio_path, "wb") as f:
             f.write(r_audio.content)
 
-        # 1️⃣ 자막 처리 (14자 단위 줄바꿈)
+        # 자막 분할 및 타이밍 계산
+        audio = AudioSegment.from_file(audio_path)
+        audio_duration = audio.duration_seconds
         lines = textwrap.wrap(text.strip(), width=14)
+        seconds_per_line = audio_duration / len(lines)
         subtitles = []
         for i, line in enumerate(lines):
-            start = i * 3.5
-            end = start + 3.5
+            start = round(i * seconds_per_line, 2)
+            end = round(start + seconds_per_line, 2)
             subtitles.append({"start": start, "end": end, "text": line})
 
-        # 2️⃣ drawtext 필터 생성 (안정 버전, alpha 제거)
+        # drawtext 필터 생성
         font_path = "NotoSansKR-VF.ttf"
         drawtext_filters = []
         for sub in subtitles:
-            safe_text = sub['text'].replace("'", "\\'").replace(":", "\\:").replace(",", "\\,")
+            alpha_expr = (
+                f"if(lt(t,{sub['start']}),0,"
+                f"if(lt(t,{sub['start']}+0.5),(t-{sub['start']})/0.5,"
+                f"if(lt(t,{sub['end']}-0.5),1,"
+                f"(1-(t-{sub['end']}+0.5)/0.5))))"
+            )
+            safe_text = sub['text'].replace("'", r"\'").replace(",", r"\,")
             drawtext = (
                 f"drawtext=fontfile='{font_path}':"
                 f"text='{safe_text}':"
                 f"fontcolor=white:fontsize=60:x=(w-text_w)/2:y=(h-text_h)/2:"
+                f"alpha='{alpha_expr}':"
                 f"borderw=4:bordercolor=black:box=1:boxcolor=black@0.5:boxborderw=20:"
                 f"enable='between(t,{sub['start']},{sub['end']})'"
             )
@@ -91,7 +97,6 @@ def upload_and_generate():
 
         filterchain = "scale=1080:1920," + ",".join(drawtext_filters)
 
-        # ffmpeg 명령어
         command = [
             "ffmpeg",
             "-y",
@@ -104,12 +109,11 @@ def upload_and_generate():
             output_path
         ]
 
-        # 시스템 리소스 로그
-        print(f"Memory available: {psutil.virtual_memory().available / 1024 / 1024:.2f} MB")
-        print(f"CPU usage: {psutil.cpu_percent()}%")
-
+        print(f"🔧 Running ffmpeg: {' '.join(command)}")
+        print(f"🧠 Memory: {psutil.virtual_memory().available / 1024 / 1024:.2f} MB available")
         process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-        stdout, stderr = process.communicate(timeout=1800)
+        stdout, stderr = process.communicate(timeout=180)
+
         print("\n🔧 FFMPEG STDERR:\n", stderr.decode())
 
         if process.returncode != 0:
@@ -120,7 +124,6 @@ def upload_and_generate():
 
         with open(output_path, "rb") as f:
             video_public_url = upload_to_supabase(f.read(), video_name, "video/mp4")
-
         if not video_public_url:
             return {"error": "Video upload failed"}, 500
 
@@ -157,6 +160,7 @@ def upload_and_generate():
 @app.route("/")
 def home():
     return "✅ Shorts Generator Flask 서버 실행 중"
+
 
 
 
