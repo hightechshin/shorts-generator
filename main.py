@@ -31,20 +31,17 @@ def sanitize_drawtext(text):
     return text.strip().replace("'", "\\'").replace(":", "\\:")
 
 def generate_drawtext_filters(text, duration, font_path=FONT_PATH):
+    # 1️⃣ 자막 처리 (14자 단위 줄바꿈)
     lines = textwrap.wrap(text.strip(), width=14)
     per_line_sec = duration / len(lines)
     filters = []
     for i, line in enumerate(lines):
-        start = round(i * per_line_sec, 2)
-        end = round(start + per_line_sec, 2)
+        start = round(i * per_line_sec, 2)  # 자막 시작 시간
+        end = round(start + per_line_sec, 2)  # 자막 끝 시간
         safe_text = sanitize_drawtext(line)
-        
-        # alpha_expr 수정을 통해 구문 오류 방지
-        alpha_expr = (
-            f"if(lt(t,{start}),0,"
-            f"if(lt(t,{start}+0.5),(t-{start})/0.5,"
-            f"if(lt(t,{end}-0.5),1,(1-(t-{end}+0.5)/0.5)))"
-        )
+
+        # 2️⃣ 간단한 alpha_expr 수정
+        alpha_expr = f"if(lt(t,{start}),0,if(lt(t,{end}),1,0))"
 
         drawtext = (
             f"drawtext=fontfile='{font_path}':"
@@ -57,7 +54,6 @@ def generate_drawtext_filters(text, duration, font_path=FONT_PATH):
         )
         filters.append(drawtext)
     return "scale=1080:1920," + ",".join(filters)
-
 
 def upload_to_supabase(file_content, file_name, file_type):
     headers = {
@@ -172,6 +168,7 @@ def upload_and_generate():
 @app.route("/")
 def home():
     return "✅ Shorts Generator Flask 서버 실행 중"
+
 
 
 
