@@ -81,11 +81,11 @@ def upload_and_generate():
         drawtext_filters = []
         for sub in subtitles:
             alpha_expr = (
-                f"if(lt(t,{sub['start']}),0,"
-                f"if(lt(t,{sub['start']}+0.5),(t-{sub['start']})/0.5,"
-                f"if(lt(t,{sub['end']}-0.5),1,"
-                f"(1-(t-{sub['end']}+0.5)/0.5)))"
-            )
+    f"if(lt(t,{start}),0,"
+    f"if(lt(t,{start}+0.5),(t-{start})/0.5,"
+    f"if(lt(t,{end}-0.5),1,"
+    f"(1-(t-{end}+0.5)/0.5))))"
+)
             drawtext = (
                 f"drawtext=fontfile='{font_path}':"
                 f"text='{sub['text']}':"
