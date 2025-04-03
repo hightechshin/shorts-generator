@@ -155,6 +155,9 @@ def upload_and_generate():
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=10000, debug=True)
 
+@app.route("/")
+def home():
+    return "✅ Shorts Generator Flask 서버 실행 중"
 
 
 
