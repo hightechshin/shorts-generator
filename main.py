@@ -1,12 +1,12 @@
 import os
+import re
+import textwrap
+import uuid
 import requests
 import subprocess
 from flask import Flask, request
 from datetime import datetime
-import uuid
-import textwrap
 from pydub import AudioSegment
-import re
 
 app = Flask(__name__)
 
@@ -22,12 +22,28 @@ SUPABASE_UPLOAD = f"{SUPABASE_BASE}/{SUPABASE_BUCKET}"
 SUPABASE_SERVICE_KEY = os.environ['SUPABASE_SERVICE_ROLE']
 SUPABASE_REST = "https://bxrpebzmcgftbnlfdrre.supabase.co/rest/v1"
 
+def sanitize_drawtext(text):
+    text = text.strip().strip('"')
+    return re.sub(r"([\\':])", r"\\\\\1", text)
+
+def generate_drawtext_filter(text, font_size=48, line_spacing=10):
+    lines = textwrap.wrap(text.strip(), width=15)[:15]
+    if not lines:
+        return "drawtext=text='(자막 없음)':fontcolor=white:fontsize=48:x=(w-text_w)/2:y=(h-text_h)/2"
+    filter_parts = []
+    for i, raw_line in enumerate(lines):
+        line = sanitize_drawtext(raw_line)
+        y_offset = f"(h-text_h)/2+{(i - len(lines)//2) * (font_size + line_spacing)}"
+        drawtext = (
+            f"drawtext=text='{line}':"
+            f"fontcolor=white:fontsize={font_size}:"
+            f"x=(w-text_w)/2:y={y_offset}"
+        )
+        filter_parts.append(drawtext)
+    return ",".join(filter_parts)
 
 def fix_url(url):
-    if not url:
-        return None
-    return url if url.startswith("http") else f"https:{url}"
-
+    return url if url and url.startswith("http") else f"https:{url}" if url else None
 
 def upload_to_supabase(file_content, file_name, file_type):
     headers = {
@@ -36,10 +52,7 @@ def upload_to_supabase(file_content, file_name, file_type):
     }
     upload_url = f"{SUPABASE_UPLOAD}/{file_name}"
     res = requests.post(upload_url, headers=headers, data=file_content)
-    if res.status_code in [200, 201]:
-        return file_name
-    return None
-
+    return file_name if res.status_code in [200, 201] else None
 
 def generate_signed_url(file_path, expires_in=3600):
     url = f"{SUPABASE_BASE}/sign/{SUPABASE_BUCKET}/{file_path}"
@@ -51,42 +64,11 @@ def generate_signed_url(file_path, expires_in=3600):
         },
         json={"expiresIn": expires_in}
     )
-    if res.status_code == 200:
-        return res.json().get("signedURL")
-    else:
-        print("❌ Signed URL 생성 실패:", res.text)
-        return None
-
+    return res.json().get("signedURL") if res.status_code == 200 else None
 
 def get_audio_duration(filepath):
     audio = AudioSegment.from_file(filepath)
     return audio.duration_seconds
-
-
-def sanitize_drawtext(text):
-    text = text.strip().strip('"')  # ✅ 바깥쪽 큰따옴표 제거
-    return re.sub(r"([\\':])", r"\\\1", text)
-
-
-
-def generate_drawtext_filter(text, font_size=48, line_spacing=10):
-    lines = textwrap.wrap(text.strip(), width=15)
-    lines = lines[:15]  # ✂️ 최대 15줄 제한
-    num_lines = len(lines)
-    filter_parts = []
-
-    for i, raw_line in enumerate(lines):
-        line = sanitize_drawtext(raw_line)
-        y_offset = f"(h-text_h)/2+{(i - num_lines//2) * (font_size + line_spacing)}"
-        drawtext = (
-            f"drawtext=text='{line}':"
-            f"fontcolor=white:fontsize={font_size}:"
-            f"x=(w-text_w)/2:y={y_offset}"
-        )
-        filter_parts.append(drawtext)
-
-    return ",".join(filter_parts)
-
 
 @app.route("/upload_and_generate", methods=["POST"])
 def upload_and_generate():
@@ -100,7 +82,6 @@ def upload_and_generate():
     try:
         r_img = requests.get(image_url)
         r_audio = requests.get(audio_url)
-
         if r_img.status_code != 200 or r_audio.status_code != 200:
             return {"error": "Failed to download image or audio"}, 400
 
@@ -108,7 +89,6 @@ def upload_and_generate():
         image_name = f"{uid}_bg.jpg"
         audio_name = f"{uid}_audio.mp3"
         video_name = f"{uid}_video.mp4"
-
         image_path = os.path.join(UPLOAD_FOLDER, image_name)
         audio_path = os.path.join(UPLOAD_FOLDER, audio_name)
         output_path = os.path.join(OUTPUT_FOLDER, video_name)
@@ -119,33 +99,29 @@ def upload_and_generate():
             f.write(r_audio.content)
 
         duration = get_audio_duration(audio_path)
-        safe_duration = min(duration, 59)  # ⏱️ 쇼츠용 제한 적용
-        print("🔍 오디오 길이 (초):", duration)
-
         drawtext_filter = generate_drawtext_filter(text)
-        print("🎯 drawtext 필터:", drawtext_filter)
 
         command = [
-            "ffmpeg",
-            "-loop", "1",
-            "-i", image_path,
+            "ffmpeg", "-loop", "1", "-i", image_path,
             "-i", audio_path,
             "-filter_complex", drawtext_filter,
-            "-t", str(safe_duration),
-            "-y",
-            output_path
+            "-t", str(min(duration, 59)),
+            "-y", output_path
         ]
 
-        print("🧪 FFmpeg 명령어:", " ".join(command))
         result = subprocess.run(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         print("\n🔧 FFMPEG STDERR:\n", result.stderr.decode())
 
-        if not os.path.exists(output_path) or os.path.getsize(output_path) == 0:
-            return {"error": "Video generation failed"}, 500
+        if os.path.exists(output_path):
+            size = os.path.getsize(output_path)
+            print(f"📦 mp4 size: {size} bytes")
+            if size < 1000:
+                return {"error": "Video too small. drawtext may have failed."}, 500
+        else:
+            return {"error": "Output video not found"}, 500
 
         with open(output_path, "rb") as f:
             uploaded_path = upload_to_supabase(f.read(), video_name, "video/mp4")
-
         if not uploaded_path:
             return {"error": "Video upload failed"}, 500
 
@@ -171,7 +147,6 @@ def upload_and_generate():
             },
             json=db_data
         )
-
         if res.status_code not in [200, 201]:
             return {"error": "DB insert failed", "detail": res.text}, 500
 
@@ -183,7 +158,6 @@ def upload_and_generate():
     except Exception as e:
         print("❌ 예외 발생:", str(e))
         return {"error": str(e)}, 500
-
 
 @app.route("/")
 def home():
