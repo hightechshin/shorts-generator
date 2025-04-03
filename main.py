@@ -6,6 +6,7 @@ from datetime import datetime
 import uuid
 import textwrap
 from pydub import AudioSegment
+import re
 
 app = Flask(__name__)
 
@@ -62,12 +63,18 @@ def get_audio_duration(filepath):
     return audio.duration_seconds
 
 
+def sanitize_drawtext(text):
+    return re.sub(r"([\\':])", r"\\\1", text)
+
+
 def generate_drawtext_filter(text, font_size=48, line_spacing=10):
     lines = textwrap.wrap(text.strip(), width=15)
+    lines = lines[:15]  # ✂️ 최대 15줄 제한
     num_lines = len(lines)
     filter_parts = []
 
-    for i, line in enumerate(lines):
+    for i, raw_line in enumerate(lines):
+        line = sanitize_drawtext(raw_line)
         y_offset = f"(h-text_h)/2+{(i - num_lines//2) * (font_size + line_spacing)}"
         drawtext = (
             f"drawtext=text='{line}':"
@@ -110,11 +117,9 @@ def upload_and_generate():
             f.write(r_audio.content)
 
         duration = get_audio_duration(audio_path)
+        safe_duration = min(duration, 59)  # ⏱️ 쇼츠용 제한 적용
         print("🔍 오디오 길이 (초):", duration)
-        if duration <= 0:
-            return {"error": "Invalid audio duration"}, 400
 
-        # drawtext 필터 생성
         drawtext_filter = generate_drawtext_filter(text)
         print("🎯 drawtext 필터:", drawtext_filter)
 
@@ -124,7 +129,7 @@ def upload_and_generate():
             "-i", image_path,
             "-i", audio_path,
             "-filter_complex", drawtext_filter,
-            "-shortest",
+            "-t", str(safe_duration),
             "-y",
             output_path
         ]
@@ -181,6 +186,7 @@ def upload_and_generate():
 @app.route("/")
 def home():
     return "✅ Shorts Generator Flask 서버 실행 중"
+
 
 
 
