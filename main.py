@@ -38,15 +38,26 @@ def generate_drawtext_filters(text, duration, font_path=FONT_PATH):
         start = round(i * per_line_sec, 2)
         end = round(start + per_line_sec, 2)
         safe_text = sanitize_drawtext(line)
+        
+        # alpha_expr 수정을 통해 구문 오류 방지
+        alpha_expr = (
+            f"if(lt(t,{start}),0,"
+            f"if(lt(t,{start}+0.5),(t-{start})/0.5,"
+            f"if(lt(t,{end}-0.5),1,(1-(t-{end}+0.5)/0.5)))"
+        )
+
         drawtext = (
-            f"drawtext=fontfile='{font_path}':text='{safe_text}':"
+            f"drawtext=fontfile='{font_path}':"
+            f"text='{safe_text}':"
             f"fontcolor=white:fontsize=60:borderw=4:bordercolor=black:"
             f"box=1:boxcolor=black@0.5:boxborderw=20:"
             f"x=(w-text_w)/2:y=(h-text_h)/2:"
+            f"alpha='{alpha_expr}':"
             f"enable='between(t,{start},{end})'"
         )
         filters.append(drawtext)
     return "scale=1080:1920," + ",".join(filters)
+
 
 def upload_to_supabase(file_content, file_name, file_type):
     headers = {
