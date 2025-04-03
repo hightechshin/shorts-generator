@@ -35,6 +35,7 @@ def generate_drawtext_filters(text, duration, font_path=FONT_PATH):
     lines = textwrap.wrap(text.strip(), width=14)
     per_line_sec = duration / len(lines)
     filters = []
+    
     for i, line in enumerate(lines):
         start = round(i * per_line_sec, 2)  # 자막 시작 시간
         end = round(start + per_line_sec, 2)  # 자막 끝 시간
@@ -53,6 +54,8 @@ def generate_drawtext_filters(text, duration, font_path=FONT_PATH):
             f"enable='between(t,{start},{end})'"
         )
         filters.append(drawtext)
+
+    # 전체 필터 반환
     return "scale=1080:1920," + ",".join(filters)
 
 def upload_to_supabase(file_content, file_name, file_type):
@@ -168,6 +171,7 @@ def upload_and_generate():
 @app.route("/")
 def home():
     return "✅ Shorts Generator Flask 서버 실행 중"
+
 
 
 
