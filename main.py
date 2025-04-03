@@ -22,39 +22,31 @@ SUPABASE_UPLOAD = f"{SUPABASE_BASE}/{SUPABASE_BUCKET}"
 SUPABASE_SERVICE_KEY = os.environ['SUPABASE_SERVICE_ROLE']
 SUPABASE_REST = "https://bxrpebzmcgftbnlfdrre.supabase.co/rest/v1"
 
-def sanitize_drawtext(text):
-    text = text.strip().replace("'", "\\'").replace(":", "\\:")
-    return text
-
-def generate_drawtext_filters(text, font_path="NotoSansKR-VF.ttf", font_size=60, line_spacing=10):
-    lines = textwrap.wrap(text.strip(), width=14)
-    subtitles = []
-    for i, line in enumerate(lines):
-        start = i * 3.5
-        end = start + 3.5
-        subtitles.append({"start": start, "end": end, "text": line})
-
-    filters = []
-    for sub in subtitles:
-        alpha_expr = (
-            f"if(lt(t,{sub['start']}),0,"
-            f"if(lt(t,{sub['start']}+0.5),(t-{sub['start']})/0.5,"
-            f"if(lt(t,{sub['end']}-0.5),1,(1-(t-{sub['end']}+0.5)/0.5)))"
-        )
-        drawtext = (
-            f"drawtext=fontfile='{font_path}':"
-            f"text='{sanitize_drawtext(sub['text'])}':"
-            f"fontcolor=white:fontsize={font_size}:"
-            f"x=(w-text_w)/2:y=(h-text_h)/2:"
-            f"alpha='{alpha_expr}':"
-            f"borderw=4:bordercolor=black:box=1:boxcolor=black@0.5:boxborderw=20:"
-            f"enable='between(t,{sub['start']},{sub['end']})'"
-        )
-        filters.append(drawtext)
-    return "scale=1080:1920," + ",".join(filters)
+FONT_PATH = "NotoSansKR-VF.ttf"
 
 def fix_url(url):
     return url if url and url.startswith("http") else f"https:{url}" if url else None
+
+def sanitize_drawtext(text):
+    return text.strip().replace("'", "\\'").replace(":", "\\:")
+
+def generate_drawtext_filters(text, duration, font_path=FONT_PATH):
+    lines = textwrap.wrap(text.strip(), width=14)
+    per_line_sec = duration / len(lines)
+    filters = []
+    for i, line in enumerate(lines):
+        start = round(i * per_line_sec, 2)
+        end = round(start + per_line_sec, 2)
+        safe_text = sanitize_drawtext(line)
+        drawtext = (
+            f"drawtext=fontfile='{font_path}':text='{safe_text}':"
+            f"fontcolor=white:fontsize=60:borderw=4:bordercolor=black:"
+            f"box=1:boxcolor=black@0.5:boxborderw=20:"
+            f"x=(w-text_w)/2:y=(h-text_h)/2:"
+            f"enable='between(t,{start},{end})'"
+        )
+        filters.append(drawtext)
+    return "scale=1080:1920," + ",".join(filters)
 
 def upload_to_supabase(file_content, file_name, file_type):
     headers = {
@@ -79,7 +71,7 @@ def generate_signed_url(file_path, expires_in=3600):
 
 def get_audio_duration(filepath):
     audio = AudioSegment.from_file(filepath)
-    return audio.duration_seconds
+    return round(audio.duration_seconds, 2)
 
 @app.route("/upload_and_generate", methods=["POST"])
 def upload_and_generate():
@@ -110,27 +102,21 @@ def upload_and_generate():
             f.write(r_audio.content)
 
         duration = get_audio_duration(audio_path)
-        drawtext_filter = generate_drawtext_filters(text)
+        filter_str = generate_drawtext_filters(text, duration)
 
         command = [
             "ffmpeg", "-loop", "1", "-i", image_path,
             "-i", audio_path,
             "-shortest", "-t", str(min(duration, 59)),
-            "-vf", drawtext_filter,
+            "-vf", filter_str,
             "-preset", "ultrafast",
             "-y", output_path
         ]
-
         result = subprocess.run(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         print("\n🔧 FFMPEG STDERR:\n", result.stderr.decode())
 
-        if os.path.exists(output_path):
-            size = os.path.getsize(output_path)
-            print(f"📦 mp4 size: {size} bytes")
-            if size < 1000:
-                return {"error": "Video too small. drawtext may have failed."}, 500
-        else:
-            return {"error": "Output video not found"}, 500
+        if not os.path.exists(output_path) or os.path.getsize(output_path) < 1000:
+            return {"error": "Video too small. drawtext may have failed."}, 500
 
         with open(output_path, "rb") as f:
             uploaded_path = upload_to_supabase(f.read(), video_name, "video/mp4")
@@ -159,6 +145,7 @@ def upload_and_generate():
             },
             json=db_data
         )
+
         if res.status_code not in [200, 201]:
             return {"error": "DB insert failed", "detail": res.text}, 500
 
@@ -174,6 +161,7 @@ def upload_and_generate():
 @app.route("/")
 def home():
     return "✅ Shorts Generator Flask 서버 실행 중"
+
 
 
 
