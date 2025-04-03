@@ -28,38 +28,29 @@ def fix_url(url):
     return url if url and url.startswith("http") else f"https:{url}" if url else None
 
 def sanitize_drawtext(text):
-    return text.strip().replace("'", "\\'").replace(":", "\\:")
+    text = text.strip().replace("\\", "\\\\").replace("'", "\\'")
+    text = text.replace(":", "\\:").replace(",", "\\,")
+    text = re.sub(r"[^\w\s.,!?]", "", text)
+    return text
 
 def generate_drawtext_filters(text, duration, font_path=FONT_PATH):
     lines = textwrap.wrap(text.strip(), width=14)
-
-    # 자막 개수 제한 (최소 1.5초는 유지)
-    max_lines = int(duration / 1.5)
-    if len(lines) > max_lines:
-        lines = lines[:max_lines]
-
-    per_line_sec = round(duration / len(lines), 2)
-    per_line_sec = max(per_line_sec, 1.5)  # 안정성 확보
-
+    min_sec = 2.5  # 자막 한 줄 최소 시간 보장
+    per_line_sec = max(duration / len(lines), min_sec)
     filters = []
     for i, line in enumerate(lines):
         start = round(i * per_line_sec, 2)
         end = round(start + per_line_sec, 2)
         safe_text = sanitize_drawtext(line)
-
-        alpha_expr = f"if(lt(t,{start}),0,if(lt(t,{end}),1,0))"
-
         drawtext = (
             f"drawtext=fontfile='{font_path}':"
             f"text='{safe_text}':"
             f"fontcolor=white:fontsize=60:borderw=4:bordercolor=black:"
             f"box=1:boxcolor=black@0.5:boxborderw=20:"
             f"x=(w-text_w)/2:y=(h-text_h)/2:"
-            f"alpha='{alpha_expr}':"
             f"enable='between(t,{start},{end})'"
         )
         filters.append(drawtext)
-
     return "scale=1080:1920," + ",".join(filters)
 
 def upload_to_supabase(file_content, file_name, file_type):
@@ -67,14 +58,12 @@ def upload_to_supabase(file_content, file_name, file_type):
         "Authorization": f"Bearer {SUPABASE_SERVICE_KEY}",
         "Content-Type": file_type
     }
-    upload_url = f"{SUPABASE_UPLOAD}/{file_name}"
-    res = requests.post(upload_url, headers=headers, data=file_content)
+    res = requests.post(f"{SUPABASE_UPLOAD}/{file_name}", headers=headers, data=file_content)
     return file_name if res.status_code in [200, 201] else None
 
 def generate_signed_url(file_path, expires_in=3600):
-    url = f"{SUPABASE_BASE}/sign/{SUPABASE_BUCKET}/{file_path}"
     res = requests.post(
-        url,
+        f"{SUPABASE_BASE}/sign/{SUPABASE_BUCKET}/{file_path}",
         headers={
             "Authorization": f"Bearer {SUPABASE_SERVICE_KEY}",
             "Content-Type": "application/json"
@@ -116,13 +105,13 @@ def upload_and_generate():
             f.write(r_audio.content)
 
         duration = get_audio_duration(audio_path)
-        filter_str = generate_drawtext_filters(text, duration)
+        drawtext_filter = generate_drawtext_filters(text, duration)
 
         command = [
             "ffmpeg", "-loop", "1", "-i", image_path,
             "-i", audio_path,
             "-shortest", "-t", str(min(duration, 59)),
-            "-vf", filter_str,
+            "-vf", drawtext_filter,
             "-preset", "ultrafast",
             "-y", output_path
         ]
@@ -175,6 +164,7 @@ def upload_and_generate():
 @app.route("/")
 def home():
     return "✅ Shorts Generator Flask 서버 실행 중"
+
 
 
 
