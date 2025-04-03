@@ -2,7 +2,7 @@ import os
 import requests
 import subprocess
 from flask import Flask, request
-from datetime import datetime
+from datetime import datetime, timedelta
 import uuid
 import textwrap
 from pydub import AudioSegment
@@ -21,10 +21,12 @@ SUPABASE_UPLOAD = f"{SUPABASE_BASE}/{SUPABASE_BUCKET}"
 SUPABASE_SERVICE_KEY = os.environ['SUPABASE_SERVICE_ROLE']
 SUPABASE_REST = "https://bxrpebzmcgftbnlfdrre.supabase.co/rest/v1"
 
+
 def fix_url(url):
     if not url:
         return None
     return url if url.startswith("http") else f"https:{url}"
+
 
 def upload_to_supabase(file_content, file_name, file_type):
     headers = {
@@ -34,36 +36,48 @@ def upload_to_supabase(file_content, file_name, file_type):
     upload_url = f"{SUPABASE_UPLOAD}/{file_name}"
     res = requests.post(upload_url, headers=headers, data=file_content)
     if res.status_code in [200, 201]:
-        return f"{SUPABASE_PUBLIC}/{file_name}"
+        return file_name  # return path for signed URL
     return None
+
+
+def generate_signed_url(file_path, expires_in=3600):
+    url = f"{SUPABASE_BASE}/sign/{SUPABASE_BUCKET}/{file_path}"
+    res = requests.post(
+        url,
+        headers={
+            "Authorization": f"Bearer {SUPABASE_SERVICE_KEY}",
+            "Content-Type": "application/json"
+        },
+        json={"expiresIn": expires_in}
+    )
+    if res.status_code == 200:
+        return res.json().get("signedURL")
+    else:
+        print("❌ Signed URL 생성 실패:", res.text)
+        return None
+
 
 def get_audio_duration(filepath):
     audio = AudioSegment.from_file(filepath)
     return audio.duration_seconds
 
-def format_srt_time(seconds):
-    from datetime import timedelta
-    td = timedelta(seconds=seconds)
-    total_seconds = int(td.total_seconds())
-    ms = int((td.total_seconds() - total_seconds) * 1000)
-    hours, remainder = divmod(total_seconds, 3600)
-    minutes, sec = divmod(remainder, 60)
-    return f"{hours:02}:{minutes:02}:{sec:02},{ms:03}"
 
-def generate_srt_timed(text, total_duration, srt_path):
+def srt_time(seconds):
+    td = timedelta(seconds=seconds)
+    return str(td)[:-3].replace('.', ',').zfill(12)
+
+
+def generate_srt(text, total_duration, srt_path):
     lines = textwrap.wrap(text.strip(), width=14)
     num_lines = len(lines)
     sec_per_line = total_duration / num_lines
+
     with open(srt_path, "w", encoding="utf-8") as f:
-        f.write("[Script Info]\nScriptType: v4.00+\n\n")
-        f.write("[V4+ Styles]\n")
-        f.write("Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding\n")
-        f.write("Style: Default,NotoSansKR,48,&H00FFFF00,&H000000FF,&H00000000,&H64000000,-1,0,0,0,100,100,0,0,1,3,0,2,10,10,20,1\n\n")
-        f.write("[Events]\nFormat: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text\n")
         for i, line in enumerate(lines):
-            start = format_srt_time(i * sec_per_line).replace(",", ".")
-            end = format_srt_time((i + 1) * sec_per_line).replace(",", ".")
-            f.write(f"Dialogue: 0,{start},{end},Default,,0,0,0,,{line}\\N\n")
+            start = srt_time(i * sec_per_line)
+            end = srt_time((i + 1) * sec_per_line)
+            f.write(f"{i+1}\n{start} --> {end}\n{line}\n\n")
+
 
 @app.route("/upload_and_generate", methods=["POST"])
 def upload_and_generate():
@@ -85,12 +99,12 @@ def upload_and_generate():
         image_name = f"{uid}_bg.jpg"
         audio_name = f"{uid}_audio.mp3"
         video_name = f"{uid}_video.mp4"
-        ass_name = f"{uid}.ass"
+        srt_name = f"{uid}.srt"
 
         image_path = os.path.join(UPLOAD_FOLDER, image_name)
         audio_path = os.path.join(UPLOAD_FOLDER, audio_name)
         output_path = os.path.join(OUTPUT_FOLDER, video_name)
-        ass_path = os.path.join(UPLOAD_FOLDER, ass_name)
+        srt_path = os.path.join(UPLOAD_FOLDER, srt_name)
 
         with open(image_path, "wb") as f:
             f.write(r_img.content)
@@ -98,13 +112,13 @@ def upload_and_generate():
             f.write(r_audio.content)
 
         duration = get_audio_duration(audio_path)
-        generate_srt_timed(text, duration, ass_path)
+        generate_srt(text, duration, srt_path)
 
         command = [
             "ffmpeg",
             "-loop", "1", "-i", image_path,
             "-i", audio_path,
-            "-vf", f"ass={ass_path}",
+            "-vf", f"subtitles={srt_path}",
             "-shortest", "-y", output_path
         ]
 
@@ -115,15 +129,19 @@ def upload_and_generate():
             return {"error": "Video generation failed"}, 500
 
         with open(output_path, "rb") as f:
-            video_public_url = upload_to_supabase(f.read(), video_name, "video/mp4")
+            uploaded_path = upload_to_supabase(f.read(), video_name, "video/mp4")
 
-        if not video_public_url:
+        if not uploaded_path:
             return {"error": "Video upload failed"}, 500
+
+        signed_url = generate_signed_url(uploaded_path)
+        if not signed_url:
+            return {"error": "Signed URL 생성 실패"}, 500
 
         db_data = {
             "image_url": f"{SUPABASE_PUBLIC}/{image_name}",
             "audio_url": f"{SUPABASE_PUBLIC}/{audio_name}",
-            "video_url": video_public_url,
+            "video_url": signed_url,
             "text": text,
             "created_at": datetime.utcnow().isoformat()
         }
@@ -143,7 +161,7 @@ def upload_and_generate():
             return {"error": "DB insert failed", "detail": res.text}, 500
 
         return {
-            "video_url": video_public_url,
+            "video_url": signed_url,
             "log_id": res.json()[0]["id"]
         }
 
@@ -151,9 +169,11 @@ def upload_and_generate():
         print("❌ 예외 발생:", str(e))
         return {"error": str(e)}, 500
 
+
 @app.route("/")
 def home():
     return "✅ Shorts Generator Flask 서버 실행 중"
+
 
 
 
