@@ -1,5 +1,5 @@
 import os
-import requests  # requests 모듈 추가
+import requests
 import subprocess
 import psutil
 import uuid
@@ -89,16 +89,16 @@ def upload_and_generate():
             "-pix_fmt", "yuv420p",
             "-c:a", "aac",
             "-shortest",
-            "-preset", "ultrafast",  # 빠른 인코딩
-            "-crf", "30",  # 비디오 품질 설정
-            "-r", "15",  # FPS 설정
-            "-threads", "2",  # CPU 스레드 수
+            "-preset", "fast",  # preset을 fast로 변경
+            "-crf", "30",
+            "-r", "15",
+            "-threads", "2",
             output_path
         ]
 
         # 비동기 실행
         process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-        stdout, stderr = process.communicate(timeout=120)  # 타임아웃 설정
+        stdout, stderr = process.communicate(timeout=600)  # 타임아웃을 10분으로 설정
         print("\n🔧 FFMPEG STDERR:\n", stderr.decode())
 
         if process.returncode != 0:
@@ -157,6 +157,7 @@ def upload_and_generate():
 @app.route("/")
 def home():
     return "✅ Shorts Generator Flask 서버 실행 중"
+
 
 
 
