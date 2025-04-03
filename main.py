@@ -23,24 +23,35 @@ SUPABASE_SERVICE_KEY = os.environ['SUPABASE_SERVICE_ROLE']
 SUPABASE_REST = "https://bxrpebzmcgftbnlfdrre.supabase.co/rest/v1"
 
 def sanitize_drawtext(text):
-    text = text.strip().strip('"')
-    return re.sub(r"([\\':])", r"\\\\\1", text)
+    text = text.strip().replace("'", "\\'").replace(":", "\\:")
+    return text
 
-def generate_drawtext_filter(text, font_size=48, line_spacing=10):
-    lines = textwrap.wrap(text.strip(), width=15)[:15]
-    if not lines:
-        return "drawtext=text='(자막 없음)':fontcolor=white:fontsize=48:x=(w-text_w)/2:y=(h-text_h)/2"
-    filter_parts = []
-    for i, raw_line in enumerate(lines):
-        line = sanitize_drawtext(raw_line)
-        y_offset = f"(h-text_h)/2+{(i - len(lines)//2) * (font_size + line_spacing)}"
-        drawtext = (
-            f"drawtext=text='{line}':"
-            f"fontcolor=white:fontsize={font_size}:"
-            f"x=(w-text_w)/2:y={y_offset}"
+def generate_drawtext_filters(text, font_path="NotoSansKR-VF.ttf", font_size=60, line_spacing=10):
+    lines = textwrap.wrap(text.strip(), width=14)
+    subtitles = []
+    for i, line in enumerate(lines):
+        start = i * 3.5
+        end = start + 3.5
+        subtitles.append({"start": start, "end": end, "text": line})
+
+    filters = []
+    for sub in subtitles:
+        alpha_expr = (
+            f"if(lt(t,{sub['start']}),0,"
+            f"if(lt(t,{sub['start']}+0.5),(t-{sub['start']})/0.5,"
+            f"if(lt(t,{sub['end']}-0.5),1,(1-(t-{sub['end']}+0.5)/0.5)))"
         )
-        filter_parts.append(drawtext)
-    return ",".join(filter_parts)
+        drawtext = (
+            f"drawtext=fontfile='{font_path}':"
+            f"text='{sanitize_drawtext(sub['text'])}':"
+            f"fontcolor=white:fontsize={font_size}:"
+            f"x=(w-text_w)/2:y=(h-text_h)/2:"
+            f"alpha='{alpha_expr}':"
+            f"borderw=4:bordercolor=black:box=1:boxcolor=black@0.5:boxborderw=20:"
+            f"enable='between(t,{sub['start']},{sub['end']})'"
+        )
+        filters.append(drawtext)
+    return "scale=1080:1920," + ",".join(filters)
 
 def fix_url(url):
     return url if url and url.startswith("http") else f"https:{url}" if url else None
@@ -99,13 +110,14 @@ def upload_and_generate():
             f.write(r_audio.content)
 
         duration = get_audio_duration(audio_path)
-        drawtext_filter = generate_drawtext_filter(text)
+        drawtext_filter = generate_drawtext_filters(text)
 
         command = [
             "ffmpeg", "-loop", "1", "-i", image_path,
             "-i", audio_path,
-            "-filter_complex", drawtext_filter,
-            "-t", str(min(duration, 59)),
+            "-shortest", "-t", str(min(duration, 59)),
+            "-vf", drawtext_filter,
+            "-preset", "ultrafast",
             "-y", output_path
         ]
 
@@ -162,6 +174,7 @@ def upload_and_generate():
 @app.route("/")
 def home():
     return "✅ Shorts Generator Flask 서버 실행 중"
+
 
 
 
