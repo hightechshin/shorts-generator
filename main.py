@@ -47,14 +47,16 @@ def upload_and_generate():
         return {"error": "image_url, mp3_url, text are required"}, 400
 
     try:
+        print(f"🔄 Downloading image from {image_url}")
         r_img = requests.get(image_url)
+        print(f"🔄 Downloading audio from {audio_url}")
         r_audio = requests.get(audio_url)
 
         if r_img.status_code != 200 or r_audio.status_code != 200:
             return {"error": "Failed to download image or audio"}, 400
 
         uid = str(uuid.uuid4())
-        image_name = f"{uid}_bg.jpg"
+        image_name = f"{uid}_bg.jpg"  # .jpg로 수정
         audio_name = f"{uid}_audio.mp3"
         video_name = f"{uid}_video.mp4"
 
@@ -67,16 +69,19 @@ def upload_and_generate():
         with open(audio_path, "wb") as f:
             f.write(r_audio.content)
 
-        # 자막 없이 영상 생성 (단순 이미지 + 오디오)
-        filterchain = "scale=1080:1920"  # 단순 이미지 크기 설정
+        print(f"✔️ Image saved to {image_path}")
+        print(f"✔️ Audio saved to {audio_path}")
+
+        # 자막 없이 영상 생성 (이미지 비율 맞추기)
+        filterchain = "scale=1080:1920,setsar=1"  # 이미지 비율 맞추기
+        print(f"🔧 Running ffmpeg to create video: {output_path}")
 
         # ffmpeg 명령어 실행
         command = [
             "ffmpeg",
             "-loop", "1", "-i", image_path,
             "-i", audio_path,
-            "-t", "35",  # mp3 길이에 맞춰 35초
-            "-shortest",
+            "-shortest",  # -t 옵션 제거
             "-vf", filterchain,
             "-preset", "ultrafast",
             "-y", output_path
@@ -86,13 +91,19 @@ def upload_and_generate():
         print("\n🔧 FFMPEG STDERR:\n", result.stderr.decode())
 
         if not os.path.exists(output_path) or os.path.getsize(output_path) == 0:
+            print(f"❌ Video generation failed! File size is {os.path.getsize(output_path)} bytes.")
             return {"error": "Video generation failed"}, 500
+
+        print(f"✔️ Video successfully created: {output_path} ({os.path.getsize(output_path)} bytes)")
 
         with open(output_path, "rb") as f:
             video_public_url = upload_to_supabase(f.read(), video_name, "video/mp4")
 
         if not video_public_url:
+            print("❌ Video upload failed.")
             return {"error": "Video upload failed"}, 500
+
+        print(f"✔️ Video uploaded to Supabase: {video_public_url}")
 
         db_data = {
             "image_url": f"{SUPABASE_PUBLIC}/{image_name}",
@@ -114,7 +125,10 @@ def upload_and_generate():
         )
 
         if res.status_code not in [200, 201]:
+            print(f"❌ DB insert failed: {res.text}")
             return {"error": "DB insert failed", "detail": res.text}, 500
+
+        print(f"✔️ Video data stored in database. Log ID: {res.json()[0]['id']}")
 
         return {
             "video_url": video_public_url,
@@ -122,12 +136,13 @@ def upload_and_generate():
         }
 
     except Exception as e:
-        print("❌ 예외 발생:", str(e))
+        print(f"❌ Error: {str(e)}")
         return {"error": str(e)}, 500
 
 @app.route("/")
 def home():
     return "✅ Shorts Generator Flask 서버 실행 중"
+
 
 
 
