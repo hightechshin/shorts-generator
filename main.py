@@ -1,19 +1,22 @@
 import os
-import textwrap
 import uuid
+import textwrap
 import requests
 import subprocess
 from flask import Flask, request
 from datetime import datetime
 from pydub import AudioSegment
 
+# Flask 앱 초기화
 app = Flask(__name__)
 
+# 디렉토리 생성
 UPLOAD_FOLDER = "uploads"
 OUTPUT_FOLDER = "outputs"
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 os.makedirs(OUTPUT_FOLDER, exist_ok=True)
 
+# Supabase 설정
 SUPABASE_BUCKET = "uploads"
 SUPABASE_BASE = "https://bxrpebzmcgftbnlfdrre.supabase.co/storage/v1/object"
 SUPABASE_PUBLIC = f"{SUPABASE_BASE}/public/{SUPABASE_BUCKET}"
@@ -21,7 +24,8 @@ SUPABASE_UPLOAD = f"{SUPABASE_BASE}/{SUPABASE_BUCKET}"
 SUPABASE_SERVICE_KEY = os.environ['SUPABASE_SERVICE_ROLE']
 SUPABASE_REST = "https://bxrpebzmcgftbnlfdrre.supabase.co/rest/v1"
 
-FONT_PATH = os.path.abspath("NotoSansKR-VF.ttf")
+# 폰트 경로
+FONT_PATH = "NotoSansKR-VF.ttf"
 
 def fix_url(url):
     return url if url and url.startswith("http") else f"https:{url}" if url else None
@@ -29,26 +33,26 @@ def fix_url(url):
 def sanitize_drawtext(text):
     return text.strip().replace("'", "\\'").replace(":", "\\:")
 
-def generate_drawtext_filters(text, duration):
+def generate_drawtext_filters(text, duration, font_path=FONT_PATH):
     lines = textwrap.wrap(text.strip(), width=14)
-    per_line_sec = max(duration / len(lines), 1.5)
     filters = []
     for i, line in enumerate(lines):
-        start = round(i * per_line_sec, 2)
-        end = round(start + per_line_sec, 2)
-        safe_text = sanitize_drawtext(line)
-
+        start = i * 3.5
+        end = start + 3.5
+        alpha_expr = (
+            f"if(lt(t,{start}),0,"
+            f"if(lt(t,{start}+0.5),(t-{start})/0.5,"
+            f"if(lt(t,{end}-0.5),1,(1-(t-{end}+0.5)/0.5)))"
+        )
         drawtext = (
-            f"drawtext=fontfile='{FONT_PATH}':"
-            f"text='{safe_text}':"
-            f"fontcolor=white:fontsize=60:borderw=4:bordercolor=black:"
-            f"box=1:boxcolor=black@0.5:boxborderw=20:"
-            f"x=(w-text_w)/2:y=(h-text_h)/2:"
-            f"alpha=1:"
+            f"drawtext=fontfile='{font_path}':"
+            f"text='{sanitize_drawtext(line)}':"
+            f"fontcolor=white:fontsize=60:x=(w-text_w)/2:y=(h-text_h)/2:"
+            f"alpha='{alpha_expr}':"
+            f"borderw=4:bordercolor=black:box=1:boxcolor=black@0.5:boxborderw=20:"
             f"enable='between(t,{start},{end})'"
         )
         filters.append(drawtext)
-
     return "scale=1080:1920," + ",".join(filters)
 
 def upload_to_supabase(file_content, file_name, file_type):
@@ -164,6 +168,7 @@ def upload_and_generate():
 @app.route("/")
 def home():
     return "✅ Shorts Generator Flask 서버 실행 중"
+
 
 
 
