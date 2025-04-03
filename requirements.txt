@@ -1,0 +1,6 @@
+flask
+requests
+python-dotenv
+openai
+moviepy
+ffmpeg-python
