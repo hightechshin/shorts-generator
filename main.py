@@ -5,16 +5,15 @@ from flask import Flask, request
 from datetime import datetime
 import uuid
 import textwrap
+from pydub import AudioSegment
 
 app = Flask(__name__)
 
-# 📁 폴더 설정
 UPLOAD_FOLDER = "uploads"
 OUTPUT_FOLDER = "outputs"
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 os.makedirs(OUTPUT_FOLDER, exist_ok=True)
 
-# 🔐 Supabase 설정
 SUPABASE_BUCKET = "uploads"
 SUPABASE_BASE = "https://bxrpebzmcgftbnlfdrre.supabase.co/storage/v1/object"
 SUPABASE_PUBLIC = f"{SUPABASE_BASE}/public/{SUPABASE_BUCKET}"
@@ -38,6 +37,34 @@ def upload_to_supabase(file_content, file_name, file_type):
         return f"{SUPABASE_PUBLIC}/{file_name}"
     return None
 
+def get_audio_duration(filepath):
+    audio = AudioSegment.from_file(filepath)
+    return audio.duration_seconds
+
+def format_srt_time(seconds):
+    from datetime import timedelta
+    td = timedelta(seconds=seconds)
+    total_seconds = int(td.total_seconds())
+    ms = int((td.total_seconds() - total_seconds) * 1000)
+    hours, remainder = divmod(total_seconds, 3600)
+    minutes, sec = divmod(remainder, 60)
+    return f"{hours:02}:{minutes:02}:{sec:02},{ms:03}"
+
+def generate_srt_timed(text, total_duration, srt_path):
+    lines = textwrap.wrap(text.strip(), width=14)
+    num_lines = len(lines)
+    sec_per_line = total_duration / num_lines
+    with open(srt_path, "w", encoding="utf-8") as f:
+        f.write("[Script Info]\nScriptType: v4.00+\n\n")
+        f.write("[V4+ Styles]\n")
+        f.write("Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding\n")
+        f.write("Style: Default,NotoSansKR,48,&H00FFFF00,&H000000FF,&H00000000,&H64000000,-1,0,0,0,100,100,0,0,1,3,0,2,10,10,20,1\n\n")
+        f.write("[Events]\nFormat: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text\n")
+        for i, line in enumerate(lines):
+            start = format_srt_time(i * sec_per_line).replace(",", ".")
+            end = format_srt_time((i + 1) * sec_per_line).replace(",", ".")
+            f.write(f"Dialogue: 0,{start},{end},Default,,0,0,0,,{line}\\N\n")
+
 @app.route("/upload_and_generate", methods=["POST"])
 def upload_and_generate():
     image_url = fix_url(request.form.get("image_url"))
@@ -58,55 +85,27 @@ def upload_and_generate():
         image_name = f"{uid}_bg.jpg"
         audio_name = f"{uid}_audio.mp3"
         video_name = f"{uid}_video.mp4"
+        ass_name = f"{uid}.ass"
 
         image_path = os.path.join(UPLOAD_FOLDER, image_name)
         audio_path = os.path.join(UPLOAD_FOLDER, audio_name)
         output_path = os.path.join(OUTPUT_FOLDER, video_name)
+        ass_path = os.path.join(UPLOAD_FOLDER, ass_name)
 
         with open(image_path, "wb") as f:
             f.write(r_img.content)
         with open(audio_path, "wb") as f:
             f.write(r_audio.content)
 
-        # 1️⃣ 자막 처리 (14자 단위 줄바꿈)
-        lines = textwrap.wrap(text.strip(), width=14)
-        subtitles = []
-        for i, line in enumerate(lines):
-            start = i * 3.5
-            end = start + 3.5
-            subtitles.append({"start": start, "end": end, "text": line})
+        duration = get_audio_duration(audio_path)
+        generate_srt_timed(text, duration, ass_path)
 
-        # 2️⃣ drawtext 필터 생성
-        font_path = "NotoSansKR-VF.ttf"
-        drawtext_filters = []
-        for sub in subtitles:
-            alpha_expr = (
-    f"if(lt(t,{start}),0,"
-    f"if(lt(t,{start}+0.5),(t-{start})/0.5,"
-    f"if(lt(t,{end}-0.5),1,"
-    f"(1-(t-{end}+0.5)/0.5))))"
-)
-            drawtext = (
-                f"drawtext=fontfile='{font_path}':"
-                f"text='{sub['text']}':"
-                f"fontcolor=white:fontsize=60:x=(w-text_w)/2:y=(h-text_h)/2:"
-                f"alpha='{alpha_expr}':"
-                f"borderw=4:bordercolor=black:box=1:boxcolor=black@0.5:boxborderw=20:"
-                f"enable='between(t,{sub['start']},{sub['end']})'"
-            )
-            drawtext_filters.append(drawtext)
-
-        filterchain = "scale=1080:1920," + ",".join(drawtext_filters)
-
-        # 3️⃣ ffmpeg 명령어
         command = [
             "ffmpeg",
             "-loop", "1", "-i", image_path,
             "-i", audio_path,
-            "-shortest", "-t", "59",
-            "-vf", filterchain,
-            "-preset", "ultrafast",
-            "-y", output_path
+            "-vf", f"ass={ass_path}",
+            "-shortest", "-y", output_path
         ]
 
         result = subprocess.run(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
@@ -152,14 +151,9 @@ def upload_and_generate():
         print("❌ 예외 발생:", str(e))
         return {"error": str(e)}, 500
 
-
 @app.route("/")
 def home():
     return "✅ Shorts Generator Flask 서버 실행 중"
-
-# if __name__ == "__main__":
-#     port = int(os.environ.get("PORT", 10000))
-#     app.run(host="0.0.0.0", port=port)
 
 
 
