@@ -75,26 +75,23 @@ def upload_and_generate():
             end = start + 3.5
             subtitles.append({"start": start, "end": end, "text": line})
 
-        # 2️⃣ drawtext 필터 생성
-font_path = "NotoSansKR-VF.ttf"
-drawtext_filters = []
-for sub in subtitles:
-    # 따옴표 이스케이프
-    safe_text = sub['text'].replace("'", "\\\\'")
-
-    # 쉼표 이스케이프 없이 안전한 alpha 제거 버전
-    drawtext = (
-        f"drawtext=fontfile='{font_path}':"
-        f"text='{safe_text}':"
-        f"fontcolor=white:fontsize=60:x=(w-text_w)/2:y=(h-text_h)/2:"
-        f"borderw=4:bordercolor=black:box=1:boxcolor=black@0.5:boxborderw=20:"
-        f"enable='between(t,{sub['start']},{sub['end']})'"
-    )
-    drawtext_filters.append(drawtext)
-
+        # 2️⃣ drawtext 필터 생성 (alpha 제거, 쉼표 안정성 확보)
+        font_path = "NotoSansKR-VF.ttf"
+        drawtext_filters = []
+        for sub in subtitles:
+            safe_text = sub['text'].replace("'", "\\'")
+            drawtext = (
+                f"drawtext=fontfile='{font_path}':"
+                f"text='{safe_text}':"
+                f"fontcolor=white:fontsize=60:x=(w-text_w)/2:y=(h-text_h)/2:"
+                f"borderw=4:bordercolor=black:box=1:boxcolor=black@0.5:boxborderw=20:"
+                f"enable='between(t,{sub['start']},{sub['end']})'"
+            )
+            drawtext_filters.append(drawtext)
 
         filterchain = "scale=1080:1920," + ",".join(drawtext_filters)
 
+        # ffmpeg 명령어
         command = [
             "ffmpeg",
             "-y",
@@ -107,9 +104,13 @@ for sub in subtitles:
             output_path
         ]
 
+        # 시스템 리소스 로그
+        print(f"Memory available: {psutil.virtual_memory().available / 1024 / 1024:.2f} MB")
+        print(f"CPU usage: {psutil.cpu_percent()}%")
+
         process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         stdout, stderr = process.communicate(timeout=1800)
-        print("\n🔧 FFMPEG STDERR:\n", stderr.decode())
+        print("\n\U0001f527 FFMPEG STDERR:\n", stderr.decode())
 
         if process.returncode != 0:
             return {"error": "FFmpeg failed", "ffmpeg_output": stderr.decode()}, 500
@@ -155,7 +156,8 @@ for sub in subtitles:
 
 @app.route("/")
 def home():
-    return "✅ Shorts Generator Flask 서버 실행 중"
+    return "\u2705 Shorts Generator Flask 서버 실행 중"
+
 
 
 
