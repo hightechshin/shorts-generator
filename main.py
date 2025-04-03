@@ -2,7 +2,7 @@ import os
 import requests
 import subprocess
 from flask import Flask, request
-from datetime import datetime, timedelta
+from datetime import datetime
 import uuid
 import textwrap
 from pydub import AudioSegment
@@ -62,32 +62,21 @@ def get_audio_duration(filepath):
     return audio.duration_seconds
 
 
-def srt_time(seconds):
-    td = timedelta(seconds=seconds)
-    return str(td)[:-3].replace('.', ',').zfill(12)
+def generate_drawtext_filter(text, font_size=48, line_spacing=10):
+    lines = textwrap.wrap(text.strip(), width=15)
+    num_lines = len(lines)
+    filter_parts = []
 
+    for i, line in enumerate(lines):
+        y_offset = f"(h-text_h)/2+{(i - num_lines//2) * (font_size + line_spacing)}"
+        drawtext = (
+            f"drawtext=text='{line}':"
+            f"fontcolor=white:fontsize={font_size}:"
+            f"x=(w-text_w)/2:y={y_offset}"
+        )
+        filter_parts.append(drawtext)
 
-def generate_srt(text, total_duration, srt_path):
-    try:
-        if total_duration <= 0:
-            print("❌ 유효하지 않은 오디오 길이:", total_duration)
-            return
-
-        lines = textwrap.wrap(text.strip(), width=14)
-        num_lines = len(lines)
-        sec_per_line = total_duration / num_lines if num_lines > 0 else 1
-
-        with open(srt_path, "w", encoding="utf-8") as f:
-            for i, line in enumerate(lines):
-                start = srt_time(i * sec_per_line)
-                end = srt_time((i + 1) * sec_per_line)
-                f.write(f"{i+1}\n{start} --> {end}\n{line}\n\n")
-
-        print("✅ 자막 생성 완료:", srt_path)
-        print("✅ 존재 여부:", os.path.exists(srt_path))
-
-    except Exception as e:
-        print("❌ SRT 생성 중 오류:", e)
+    return ",".join(filter_parts)
 
 
 @app.route("/upload_and_generate", methods=["POST"])
@@ -110,13 +99,10 @@ def upload_and_generate():
         image_name = f"{uid}_bg.jpg"
         audio_name = f"{uid}_audio.mp3"
         video_name = f"{uid}_video.mp4"
-        srt_name = f"{uid}.srt"
 
         image_path = os.path.join(UPLOAD_FOLDER, image_name)
         audio_path = os.path.join(UPLOAD_FOLDER, audio_name)
         output_path = os.path.join(OUTPUT_FOLDER, video_name)
-        srt_path = os.path.abspath(os.path.join(UPLOAD_FOLDER, srt_name))
-        print("📁 SRT 저장 경로:", srt_path)
 
         with open(image_path, "wb") as f:
             f.write(r_img.content)
@@ -128,26 +114,22 @@ def upload_and_generate():
         if duration <= 0:
             return {"error": "Invalid audio duration"}, 400
 
-        generate_srt(text, duration, srt_path)
+        # drawtext 필터 생성
+        drawtext_filter = generate_drawtext_filter(text)
+        print("🎯 drawtext 필터:", drawtext_filter)
 
-        if not os.path.exists(srt_path):
-            print("❌ 자막 파일이 없음:", srt_path)
-            return {"error": "SRT file missing"}, 500
-
-        # FFmpeg 명령어 구성
         command = [
             "ffmpeg",
             "-loop", "1",
             "-i", image_path,
             "-i", audio_path,
-            "-vf", f"subtitles='{srt_path}'",
+            "-filter_complex", drawtext_filter,
             "-shortest",
             "-y",
             output_path
         ]
 
         print("🧪 FFmpeg 명령어:", " ".join(command))
-
         result = subprocess.run(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         print("\n🔧 FFMPEG STDERR:\n", result.stderr.decode())
 
@@ -199,6 +181,7 @@ def upload_and_generate():
 @app.route("/")
 def home():
     return "✅ Shorts Generator Flask 서버 실행 중"
+
 
 
 
