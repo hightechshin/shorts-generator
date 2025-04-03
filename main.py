@@ -1,9 +1,9 @@
 import os
-import requests
 import subprocess
+import psutil
+import uuid
 from flask import Flask, request
 from datetime import datetime
-import uuid
 
 app = Flask(__name__)
 
@@ -12,6 +12,10 @@ UPLOAD_FOLDER = "uploads"
 OUTPUT_FOLDER = "outputs"
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 os.makedirs(OUTPUT_FOLDER, exist_ok=True)
+
+# 리소스 상태 로깅
+print(f"Memory available: {psutil.virtual_memory().available / 1024 / 1024} MB")
+print(f"CPU usage: {psutil.cpu_percent()}%")
 
 # 🔐 Supabase 설정
 SUPABASE_BUCKET = "uploads"
@@ -47,16 +51,15 @@ def upload_and_generate():
         return {"error": "image_url, mp3_url, text are required"}, 400
 
     try:
-        print(f"🔄 Downloading image from {image_url}")
+        # 이미지 및 오디오 다운로드
         r_img = requests.get(image_url)
-        print(f"🔄 Downloading audio from {audio_url}")
         r_audio = requests.get(audio_url)
 
         if r_img.status_code != 200 or r_audio.status_code != 200:
             return {"error": "Failed to download image or audio"}, 400
 
         uid = str(uuid.uuid4())
-        image_name = f"{uid}_bg.jpg"  # .jpg로 수정
+        image_name = f"{uid}_bg.jpg"
         audio_name = f"{uid}_audio.mp3"
         video_name = f"{uid}_video.mp4"
 
@@ -72,30 +75,40 @@ def upload_and_generate():
         print(f"✔️ Image saved to {image_path}")
         print(f"✔️ Audio saved to {audio_path}")
 
-        # 자막 없이 영상 생성 (이미지 비율 맞추기)
-        filterchain = "scale=1080:1920,setsar=1"  # 이미지 비율 맞추기
-        print(f"🔧 Running ffmpeg to create video: {output_path}")
-
-        # ffmpeg 명령어 실행
+        # 최적화된 ffmpeg 명령어
         command = [
             "ffmpeg",
-            "-loop", "1", "-i", image_path,
+            "-y",
+            "-loop", "1",
+            "-i", image_path,
             "-i", audio_path,
-            "-shortest",  # -t 옵션 제거
-            "-vf", filterchain,
-            "-preset", "ultrafast",
-            "-y", output_path
+            "-vf", "scale=512:512",  # 이미지 크기 축소
+            "-t", "59",  # 오디오 길이에 맞춰 59초
+            "-c:v", "libx264",
+            "-pix_fmt", "yuv420p",
+            "-c:a", "aac",
+            "-shortest",
+            "-preset", "ultrafast",  # 빠른 인코딩
+            "-crf", "30",  # 비디오 품질 설정
+            "-r", "15",  # FPS 설정
+            "-threads", "2",  # CPU 스레드 수
+            output_path
         ]
 
-        result = subprocess.run(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-        print("\n🔧 FFMPEG STDERR:\n", result.stderr.decode())
+        # 비동기 실행
+        process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        stdout, stderr = process.communicate(timeout=120)  # 타임아웃 설정
+        print("\n🔧 FFMPEG STDERR:\n", stderr.decode())
 
-        if not os.path.exists(output_path) or os.path.getsize(output_path) == 0:
+        if process.returncode != 0:
+            print(f"❌ FFmpeg failed with error: {stderr.decode()}")
+            return {"error": "FFmpeg failed", "ffmpeg_output": stderr.decode()}, 500
+
+        if not os.path.exists(output_path) or os.path.getsize(output_path) < 1024:
             print(f"❌ Video generation failed! File size is {os.path.getsize(output_path)} bytes.")
-            return {"error": "Video generation failed"}, 500
+            return {"error": "Video generation failed, file too small", "size": os.path.getsize(output_path)}, 500
 
-        print(f"✔️ Video successfully created: {output_path} ({os.path.getsize(output_path)} bytes)")
-
+        # Supabase에 비디오 업로드
         with open(output_path, "rb") as f:
             video_public_url = upload_to_supabase(f.read(), video_name, "video/mp4")
 
@@ -105,6 +118,7 @@ def upload_and_generate():
 
         print(f"✔️ Video uploaded to Supabase: {video_public_url}")
 
+        # DB에 비디오 데이터 저장
         db_data = {
             "image_url": f"{SUPABASE_PUBLIC}/{image_name}",
             "audio_url": f"{SUPABASE_PUBLIC}/{audio_name}",
@@ -142,6 +156,7 @@ def upload_and_generate():
 @app.route("/")
 def home():
     return "✅ Shorts Generator Flask 서버 실행 중"
+
 
 
 
