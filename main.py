@@ -1,4 +1,5 @@
 import os
+import requests  # requests 모듈 추가
 import subprocess
 import psutil
 import uuid
@@ -156,6 +157,7 @@ def upload_and_generate():
 @app.route("/")
 def home():
     return "✅ Shorts Generator Flask 서버 실행 중"
+
 
 
 
