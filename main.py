@@ -27,6 +27,9 @@ def fix_url(url):
         return None
     return url if url.startswith("http") else f"https:{url}"
 
+def sanitize_text(text):
+    return text.replace(":", "\\:").replace("'", "\\'").replace(",", "\\,")
+
 def upload_to_supabase(file_content, file_name, file_type):
     headers = {
         "Authorization": f"Bearer {SUPABASE_SERVICE_KEY}",
@@ -68,47 +71,50 @@ def upload_and_generate():
         with open(audio_path, "wb") as f:
             f.write(r_audio.content)
 
-        # 1️⃣ 자막 처리 (14자 단위 줄바꿈)
+        # 1️⃣ 자막 처리 (14자 기준 줄바꿈 + 3.5초 간격)
         lines = textwrap.wrap(text.strip(), width=14)
         subtitles = []
         for i, line in enumerate(lines):
-            start = i * 3.5
-            end = start + 3.5
-            subtitles.append({"start": start, "end": end, "text": line})
+            start = round(i * 3.5, 2)
+            end = round(start + 3.5, 2)
+            subtitles.append({"start": start, "end": end, "text": sanitize_text(line)})
 
         # 2️⃣ drawtext 필터 생성
         font_path = "NotoSansKR-VF.ttf"
         drawtext_filters = []
         for sub in subtitles:
+            start = sub['start']
+            end = sub['end']
             alpha_expr = (
-                f"if(lt(t,{sub['start']}),0,"
-                f"if(lt(t,{sub['start']}+0.5),(t-{sub['start']})/0.5,"
-                f"if(lt(t,{sub['end']}-0.5),1,"
-                f"(1-(t-{sub['end']}+0.5)/0.5)))"
+                f"if(lt(t,{start}),0,"
+                f"if(lt(t,{start}+0.5),(t-{start})/0.5,"
+                f"if(lt(t,{end}-0.5),1,"
+                f"if(lt(t,{end}),(1-(t-{end-0.5})/0.5),0))))"
             )
             drawtext = (
                 f"drawtext=fontfile='{font_path}':"
                 f"text='{sub['text']}':"
-                f"fontcolor=white:fontsize=60:x=(w-text_w)/2:y=(h-text_h)/2:"
+                f"fontcolor=white:fontsize=60:"
+                f"x=(w-text_w)/2:y=(h-text_h)/2:"
                 f"alpha='{alpha_expr}':"
-                f"borderw=4:bordercolor=black:box=1:boxcolor=black@0.5:boxborderw=20:"
-                f"enable='between(t,{sub['start']},{sub['end']})'"
+                f"borderw=4:bordercolor=black:"
+                f"box=1:boxcolor=black@0.5:boxborderw=20:"
+                f"enable='between(t,{start},{end})'"
             )
             drawtext_filters.append(drawtext)
 
         filterchain = "scale=1080:1920," + ",".join(drawtext_filters)
 
-        # 3️⃣ ffmpeg 명령어
+        # 3️⃣ ffmpeg 명령어 실행
         command = [
             "ffmpeg",
             "-loop", "1", "-i", image_path,
             "-i", audio_path,
-            "-shortest", "-t", "59",
+            "-shortest",
             "-vf", filterchain,
             "-preset", "ultrafast",
             "-y", output_path
         ]
-
         result = subprocess.run(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         print("\n🔧 FFMPEG STDERR:\n", result.stderr.decode())
 
@@ -152,11 +158,10 @@ def upload_and_generate():
         print("❌ 예외 발생:", str(e))
         return {"error": str(e)}, 500
 
-
-   
 @app.route("/")
 def home():
     return "✅ Shorts Generator Flask 서버 실행 중"
+
 
 
 
