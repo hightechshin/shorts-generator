@@ -17,7 +17,8 @@ os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 os.makedirs(OUTPUT_FOLDER, exist_ok=True)
 
 SUPABASE_BUCKET = "uploads"
-SUPABASE_BASE = "https://bxrpebzmcgftbnlfdrre.supabase.co/storage/v1"
+SUPABASE_STORAGE = f"{SUPABASE_PROJECT_URL}/storage/v1"
+SUPABASE_BASE = "https://bxrpebzmcgftbnlfdrre.supabase.co/storage/v1/object"
 SUPABASE_PUBLIC = f"{SUPABASE_BASE}/public/{SUPABASE_BUCKET}"
 SUPABASE_UPLOAD = f"{SUPABASE_BASE}/{SUPABASE_BUCKET}"
 SUPABASE_SIGN = f"{SUPABASE_BASE}/sign/{SUPABASE_BUCKET}"
@@ -37,7 +38,7 @@ def upload_to_supabase(file_content, file_name, file_type):
     return res.status_code in [200, 201]
 
 def get_signed_url(file_name):
-    url = f"{SUPABASE_BASE}/object/sign/{SUPABASE_BUCKET}/{file_name}"
+    url = f"{SUPABASE_STORAGE}/object/sign/{SUPABASE_BUCKET}/{file_name}"
     headers = {
         "Authorization": f"Bearer {SUPABASE_SERVICE_KEY}",
         "Content-Type": "application/json"
@@ -46,7 +47,7 @@ def get_signed_url(file_name):
     
     if res.status_code == 200:
         signed_path = res.json().get("signedURL")  # → /object/sign/... 형식
-        final_url = f"{SUPABASE_BASE}{signed_path}"
+        final_url = f"{SUPABASE_STORAGE}{signed_path}"
         print("✅ 최종 Signed URL:", final_url)
         return final_url
     else:
