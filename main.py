@@ -44,7 +44,7 @@ def get_signed_url(file_name):
     }
     res = requests.post(url, headers=headers, json={"expiresIn": 3600})
     if res.status_code == 200:
-        return "https://bxrpebzmcgftbnlfdrre.supabase.co" + res.json().get("signedURL")
+        return "https://bxrpebzmcgftbnlfdrre.supabase.co/storage/v1" + res.json().get("signedURL")
     else:
         print("❌ Failed to generate signed URL:", res.text)
         return None
