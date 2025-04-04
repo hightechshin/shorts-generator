@@ -22,8 +22,10 @@ SUPABASE_UPLOAD = f"{SUPABASE_BASE}/{SUPABASE_BUCKET}"
 SUPABASE_SERVICE_KEY = os.environ['SUPABASE_SERVICE_ROLE']
 SUPABASE_REST = "https://bxrpebzmcgftbnlfdrre.supabase.co/rest/v1"
 
+
 def fix_url(url):
     return url if url and url.startswith("http") else f"https:{url}" if url else None
+
 
 def upload_to_supabase(file_content, file_name, file_type):
     headers = {
@@ -32,7 +34,8 @@ def upload_to_supabase(file_content, file_name, file_type):
     }
     upload_url = f"{SUPABASE_UPLOAD}/{file_name}"
     res = requests.post(upload_url, headers=headers, data=file_content)
-    return file_name if res.status_code in [200, 201] else None
+    return res.status_code in [200, 201]
+
 
 def get_signed_url(file_name):
     url = f"https://bxrpebzmcgftbnlfdrre.supabase.co/storage/v1/object/sign/{SUPABASE_BUCKET}/{file_name}"
@@ -40,12 +43,8 @@ def get_signed_url(file_name):
         "Authorization": f"Bearer {SUPABASE_SERVICE_KEY}",
         "Content-Type": "application/json"
     }
-
-    # 🟡 필수: expiresIn 넣기 (초 단위 유효기간)
     res = requests.post(url, headers=headers, json={"expiresIn": 3600})
-    
     if res.status_code == 200:
-        # 🔵 필드명: signedUrl (소문자 L)
         return "https://bxrpebzmcgftbnlfdrre.supabase.co" + res.json().get("signedUrl")
     else:
         print("❌ Failed to generate signed URL:", res.text)
@@ -81,7 +80,6 @@ def upload_and_generate():
         with open(audio_path, "wb") as f:
             f.write(r_audio.content)
 
-        # 자막 처리
         audio = AudioSegment.from_file(audio_path)
         audio_duration = audio.duration_seconds
         lines = textwrap.wrap(text.strip(), width=14)
@@ -101,10 +99,9 @@ def upload_and_generate():
                 f"if(lt(t,{sub['end']}-0.5),1,"
                 f"(1-(t-{sub['end']}+0.5)/0.5))))"
             )
-            safe_text = sub['text'].replace("'", r"\'").replace(",", r"\,")
             drawtext = (
                 f"drawtext=fontfile='{font_path}':"
-                f"text='{safe_text}':"
+                f"text='{sub['text']}':"
                 f"fontcolor=white:fontsize=60:x=(w-text_w)/2:y=(h-text_h)/2:"
                 f"alpha='{alpha_expr}':"
                 f"borderw=4:bordercolor=black:box=1:boxcolor=black@0.5:boxborderw=20:"
@@ -115,7 +112,9 @@ def upload_and_generate():
         filterchain = "scale=1080:1920," + ",".join(drawtext_filters)
 
         command = [
-            "ffmpeg", "-y", "-loop", "1",
+            "ffmpeg",
+            "-y",
+            "-loop", "1",
             "-i", image_path,
             "-i", audio_path,
             "-vf", filterchain,
@@ -128,6 +127,7 @@ def upload_and_generate():
         print(f"🧠 Memory: {psutil.virtual_memory().available / 1024 / 1024:.2f} MB available")
         process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         stdout, stderr = process.communicate(timeout=180)
+
         print("\n🔧 FFMPEG STDERR:\n", stderr.decode())
 
         if process.returncode != 0:
@@ -136,13 +136,12 @@ def upload_and_generate():
         if not os.path.exists(output_path) or os.path.getsize(output_path) < 1024:
             return {"error": "Video generation failed, file too small"}, 500
 
-        # ✅ 업로드: 이미지/오디오/영상
-        with open(image_path, "rb") as f:
-            upload_to_supabase(f.read(), image_name, "image/jpeg")
-        with open(audio_path, "rb") as f:
-            upload_to_supabase(f.read(), audio_name, "audio/mpeg")
+        # ✅ 영상 업로드
         with open(output_path, "rb") as f:
-            upload_to_supabase(f.read(), video_name, "video/mp4")
+            upload_success = upload_to_supabase(f.read(), video_name, "video/mp4")
+
+        if not upload_success:
+            return {"error": "Video upload failed"}, 500
 
         # ✅ Signed URL 생성
         video_signed_url = get_signed_url(video_name)
@@ -179,9 +178,11 @@ def upload_and_generate():
     except Exception as e:
         return {"error": str(e)}, 500
 
+
 @app.route("/")
 def home():
     return "✅ Shorts Generator Flask 서버 실행 중"
+
 
 
 
