@@ -160,8 +160,6 @@ def upload_and_generate():
 def home():
     return "✅ Shorts Generator Flask 서버 실행 중"
 
-"
-
 
 
 
