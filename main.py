@@ -36,17 +36,22 @@ def upload_to_supabase(file_content, file_name, file_type):
     res = requests.post(upload_url, headers=headers, data=file_content)
     return res.status_code in [200, 201]
 
-def generate_signed_url(file_path, expires_in=3600):
-    url = f"{SUPABASE_BASE}/sign/{SUPABASE_BUCKET}/{file_path}"
-    res = requests.post(
-        url,
-        headers={
-            "Authorization": f"Bearer {SUPABASE_SERVICE_KEY}",
-            "Content-Type": "application/json"
-        },
-        json={"expiresIn": expires_in}
-    )
-    return res.json().get("signedURL") if res.status_code == 200 else None
+def get_signed_url(file_name):
+    url = f"{SUPABASE_BASE}/object/sign/{SUPABASE_BUCKET}/{file_name}"
+    headers = {
+        "Authorization": f"Bearer {SUPABASE_SERVICE_KEY}",
+        "Content-Type": "application/json"
+    }
+    res = requests.post(url, headers=headers, json={"expiresIn": 3600})
+    
+    if res.status_code == 200:
+        signed_path = res.json().get("signedURL")  # → /object/sign/... 형식
+        final_url = f"{SUPABASE_BASE}{signed_path}"
+        print("✅ 최종 Signed URL:", final_url)
+        return final_url
+    else:
+        print("❌ Failed to generate signed URL:", res.text)
+        return None
 
 
 
