@@ -19,6 +19,7 @@ SUPABASE_BUCKET = "uploads"
 SUPABASE_BASE = "https://bxrpebzmcgftbnlfdrre.supabase.co/storage/v1/object"
 SUPABASE_PUBLIC = f"{SUPABASE_BASE}/public/{SUPABASE_BUCKET}"
 SUPABASE_UPLOAD = f"{SUPABASE_BASE}/{SUPABASE_BUCKET}"
+SUPABASE_SIGNED = f"{SUPABASE_BASE}/sign/{SUPABASE_BUCKET}"
 SUPABASE_SERVICE_KEY = os.environ['SUPABASE_SERVICE_ROLE']
 SUPABASE_REST = "https://bxrpebzmcgftbnlfdrre.supabase.co/rest/v1"
 
@@ -32,7 +33,15 @@ def upload_to_supabase(file_content, file_name, file_type):
     }
     upload_url = f"{SUPABASE_UPLOAD}/{file_name}"
     res = requests.post(upload_url, headers=headers, data=file_content)
-    return f"{SUPABASE_PUBLIC}/{file_name}" if res.status_code in [200, 201] else None
+    return file_name if res.status_code in [200, 201] else None
+
+def generate_signed_url(file_name):
+    res = requests.post(
+        f"{SUPABASE_SIGNED}/{file_name}",
+        headers={"Authorization": f"Bearer {SUPABASE_SERVICE_KEY}"},
+        params={"expiresIn": 604800}  # 7 days
+    )
+    return res.json().get("signedURL") if res.status_code == 200 else None
 
 @app.route("/upload_and_generate", methods=["POST"])
 def upload_and_generate():
@@ -63,7 +72,6 @@ def upload_and_generate():
         with open(audio_path, "wb") as f:
             f.write(r_audio.content)
 
-        # 자막 분할 및 타이밍 계산
         audio = AudioSegment.from_file(audio_path)
         audio_duration = audio.duration_seconds
         lines = textwrap.wrap(text.strip(), width=14)
@@ -74,7 +82,6 @@ def upload_and_generate():
             end = round(start + seconds_per_line, 2)
             subtitles.append({"start": start, "end": end, "text": line})
 
-        # drawtext 필터 생성
         font_path = "NotoSansKR-VF.ttf"
         drawtext_filters = []
         for sub in subtitles:
@@ -98,14 +105,11 @@ def upload_and_generate():
         filterchain = "scale=1080:1920," + ",".join(drawtext_filters)
 
         command = [
-            "ffmpeg",
-            "-y",
-            "-loop", "1",
+            "ffmpeg", "-y", "-loop", "1",
             "-i", image_path,
             "-i", audio_path,
             "-vf", filterchain,
-            "-shortest",
-            "-preset", "ultrafast",
+            "-shortest", "-preset", "ultrafast",
             output_path
         ]
 
@@ -123,14 +127,16 @@ def upload_and_generate():
             return {"error": "Video generation failed, file too small"}, 500
 
         with open(output_path, "rb") as f:
-            video_public_url = upload_to_supabase(f.read(), video_name, "video/mp4")
-        if not video_public_url:
+            video_file_name = upload_to_supabase(f.read(), video_name, "video/mp4")
+        if not video_file_name:
             return {"error": "Video upload failed"}, 500
 
+        video_signed_url = generate_signed_url(video_file_name)
+
         db_data = {
-            "image_url": f"{SUPABASE_PUBLIC}/{image_name}",
-            "audio_url": f"{SUPABASE_PUBLIC}/{audio_name}",
-            "video_url": video_public_url,
+            "image_url": generate_signed_url(image_name),
+            "audio_url": generate_signed_url(audio_name),
+            "video_url": video_signed_url,
             "text": text,
             "created_at": datetime.utcnow().isoformat()
         }
@@ -150,7 +156,7 @@ def upload_and_generate():
             return {"error": "DB insert failed", "detail": res.text}, 500
 
         return {
-            "video_url": video_public_url,
+            "video_url": video_signed_url,
             "log_id": res.json()[0]["id"]
         }
 
@@ -160,6 +166,7 @@ def upload_and_generate():
 @app.route("/")
 def home():
     return "✅ Shorts Generator Flask 서버 실행 중"
+"
 
 
 
