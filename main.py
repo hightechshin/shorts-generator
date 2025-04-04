@@ -42,12 +42,19 @@ def get_signed_url(file_name):
         "Authorization": f"Bearer {SUPABASE_SERVICE_KEY}",
         "Content-Type": "application/json"
     }
+
     res = requests.post(url, headers=headers, json={"expiresIn": 3600})
+    
     if res.status_code == 200:
-        return "https://bxrpebzmcgftbnlfdrre.supabase.co/storage/v1" + res.json().get("signedURL")
+        signed_path = res.json().get("signedUrl")  # 소문자 l 확인
+        full_url = "https://bxrpebzmcgftbnlfdrre.supabase.co/storage/v1" + signed_path
+        print(f"🔗 Supabase 응답: {signed_path}")
+        print(f"✅ 최종 signed URL: {full_url}")
+        return full_url
     else:
         print("❌ Failed to generate signed URL:", res.text)
         return None
+
 
 @app.route("/upload_and_generate", methods=["POST"])
 def upload_and_generate():
