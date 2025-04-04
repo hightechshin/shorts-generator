@@ -18,6 +18,7 @@ os.makedirs(OUTPUT_FOLDER, exist_ok=True)
 
 SUPABASE_BUCKET = "uploads"
 SUPABASE_STORAGE = f"{SUPABASE_PROJECT_URL}/storage/v1"
+SUPABASE_PROJECT_URL = "https://bxrpebzmcgftbnlfdrre.supabase.co"
 SUPABASE_BASE = "https://bxrpebzmcgftbnlfdrre.supabase.co/storage/v1/object"
 SUPABASE_PUBLIC = f"{SUPABASE_BASE}/public/{SUPABASE_BUCKET}"
 SUPABASE_UPLOAD = f"{SUPABASE_BASE}/{SUPABASE_BUCKET}"
