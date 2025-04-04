@@ -36,28 +36,17 @@ def upload_to_supabase(file_content, file_name, file_type):
     res = requests.post(upload_url, headers=headers, data=file_content)
     return res.status_code in [200, 201]
 
-def get_signed_url(file_name):
-    url = f"https://bxrpebzmcgftbnlfdrre.supabase.co/storage/v1/object/sign/{SUPABASE_BUCKET}/{file_name}"
-    headers = {
-        "Authorization": f"Bearer {SUPABASE_SERVICE_KEY}",
-        "Content-Type": "application/json"
-    }
-
-    res = requests.post(url, headers=headers, json={"expiresIn": 3600})
-    
-    if res.status_code == 200:
-        signed_path = res.json().get("signedUrl")  # ⚠️ 정확히 signedUrl (소문자 L)
-        if signed_path:
-            full_url = "https://bxrpebzmcgftbnlfdrre.supabase.co/storage/v1" + signed_path
-            print(f"🔗 Supabase 응답: {signed_path}")
-            print(f"✅ 최종 signed URL: {full_url}")
-            return full_url
-        else:
-            print("❌ 'signedUrl' 값이 비어 있음:", res.text)
-            return None
-    else:
-        print("❌ Failed to generate signed URL:", res.text)
-        return None
+def generate_signed_url(file_path, expires_in=3600):
+    url = f"{SUPABASE_BASE}/sign/{SUPABASE_BUCKET}/{file_path}"
+    res = requests.post(
+        url,
+        headers={
+            "Authorization": f"Bearer {SUPABASE_SERVICE_KEY}",
+            "Content-Type": "application/json"
+        },
+        json={"expiresIn": expires_in}
+    )
+    return res.json().get("signedURL") if res.status_code == 200 else None
 
 
 
