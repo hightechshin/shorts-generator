@@ -37,7 +37,7 @@ def upload_to_supabase(file_content, file_name, file_type):
     return res.status_code in [200, 201]
 
 def get_signed_url(file_name):
-    url = f"{SUPABASE_SIGN}/{file_name}"
+    url = f"https://bxrpebzmcgftbnlfdrre.supabase.co/storage/v1/object/sign/{SUPABASE_BUCKET}/{file_name}"
     headers = {
         "Authorization": f"Bearer {SUPABASE_SERVICE_KEY}",
         "Content-Type": "application/json"
