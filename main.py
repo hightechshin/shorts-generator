@@ -38,6 +38,9 @@ def upload_to_supabase(file_content, file_name, file_type):
     return res.status_code in [200, 201]
 
 def get_signed_url(file_name):
+    if file_path.startswith("uploads/"):
+        file_path = file_path.replace("uploads/", "", 1)  # 딱 처음 한 번만
+
     url = f"{SUPABASE_STORAGE}/object/sign/{SUPABASE_BUCKET}/{file_name}"
     headers = {
         "Authorization": f"Bearer {SUPABASE_SERVICE_KEY}",
