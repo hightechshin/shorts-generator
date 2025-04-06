@@ -206,9 +206,9 @@ def get_signed_urls():
     image_path = data.get("image_path")
     audio_path = data.get("audio_path")
 
-    video_signed = get_signed_url(video_path)
-    image_signed = get_signed_url(image_path)
-    audio_signed = get_signed_url(audio_path)
+    video_signed = get_signed_url(video_path) if video_path else None
+    image_signed = get_signed_url(image_path) if image_path else None
+    audio_signed = get_signed_url(audio_path) if audio_path else None
 
     return {
         "video_url": video_signed,
