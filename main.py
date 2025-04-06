@@ -138,54 +138,62 @@ def upload_and_generate():
         if not os.path.exists(output_path):
             return {"error": "Output file not found after FFmpeg"}, 500
 
-        # 업로드
-        with open(output_path, "rb") as f:
-            video_uploaded = upload_to_supabase(f.read(), video_name, "video/mp4")
-        with open(audio_path, "rb") as f:
-            audio_uploaded = upload_to_supabase(f.read(), audio_name, "audio/mpeg")
-        with open(image_path, "rb") as f:
-            image_uploaded = upload_to_supabase(f.read(), image_name, "image/jpeg")
+        # 파일명 기준 path 구성
+video_path = f"uploads/{video_name}"
+audio_path_db = f"uploads/{audio_name}"
+image_path_db = f"uploads/{image_name}"
 
-        if not (video_uploaded and image_uploaded and audio_uploaded):
-            return {"error": "Upload to Supabase failed"}, 500
+# 업로드
+with open(output_path, "rb") as f:
+    video_uploaded = upload_to_supabase(f.read(), video_name, "video/mp4")
+with open(audio_path, "rb") as f:
+    audio_uploaded = upload_to_supabase(f.read(), audio_name, "audio/mpeg")
+with open(image_path, "rb") as f:
+    image_uploaded = upload_to_supabase(f.read(), image_name, "image/jpeg")
 
-        time.sleep(2)  # Supabase 처리 지연 방지
+if not (video_uploaded and image_uploaded and audio_uploaded):
+    return {"error": "Upload to Supabase failed"}, 500
 
-        video_signed_url = get_signed_url(video_name)
-        audio_signed_url = get_signed_url(audio_name)
-        image_signed_url = get_signed_url(image_name)
+time.sleep(2)  # Supabase 처리 지연 방지
 
-        if not all([video_signed_url, audio_signed_url, image_signed_url]):
-            return {"error": "Failed to generate one or more signed URLs"}, 500
+# ✅ signed URL은 응답에만 사용
+video_signed_url = get_signed_url(video_name)
+audio_signed_url = get_signed_url(audio_name)
+image_signed_url = get_signed_url(image_name)
 
-        db_data = {
-            "image_url": image_signed_url,
-            "audio_url": audio_signed_url,
-            "video_url": video_signed_url,
-            "text": text,
-            "created_at": datetime.utcnow().isoformat()
-        }
+if not all([video_signed_url, audio_signed_url, image_signed_url]):
+    return {"error": "Failed to generate one or more signed URLs"}, 500
 
-        res = requests.post(
-            f"{SUPABASE_REST}/videos",
-            headers={
-                "apikey": SUPABASE_SERVICE_KEY,
-                "Authorization": f"Bearer {SUPABASE_SERVICE_KEY}",
-                "Content-Type": "application/json",
-                "Prefer": "return=representation"
-            },
-            json=db_data
-        )
+# ✅ DB에는 path만 저장
+db_data = {
+    "image_path": image_path_db,
+    "audio_path": audio_path_db,
+    "video_path": video_path,
+    "text": text,
+    "created_at": datetime.utcnow().isoformat()
+}
 
-        if res.status_code not in [200, 201]:
-            return {"error": "DB insert failed", "detail": res.text}, 500
+res = requests.post(
+    f"{SUPABASE_REST}/videos",
+    headers={
+        "apikey": SUPABASE_SERVICE_KEY,
+        "Authorization": f"Bearer {SUPABASE_SERVICE_KEY}",
+        "Content-Type": "application/json",
+        "Prefer": "return=representation"
+    },
+    json=db_data
+)
 
-        return {
-            "video_url": video_signed_url,
-            "image_url": image_signed_url,
-            "audio_url": audio_signed_url,
-            "log_id": res.json()[0]["id"]
-        }, 200
+if res.status_code not in [200, 201]:
+    return {"error": "DB insert failed", "detail": res.text}, 500
+
+# ✅ 응답에는 signed URL도 포함
+return {
+    "video_url": video_signed_url,
+    "image_url": image_signed_url,
+    "audio_url": audio_signed_url,
+    "log_id": res.json()[0]["id"]
+}, 200
 
     except Exception as e:
         return {"error": str(e)}, 500
