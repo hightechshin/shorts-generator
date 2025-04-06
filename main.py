@@ -198,6 +198,23 @@ def upload_and_generate():
 
     except Exception as e:
         return {"error": str(e)}, 500
+        
+@app.route("/get_signed_urls", methods=["POST"])
+def get_signed_urls():
+    data = request.json
+    video_path = data.get("video_path")
+    image_path = data.get("image_path")
+    audio_path = data.get("audio_path")
+
+    video_signed = get_signed_url(video_path)
+    image_signed = get_signed_url(image_path)
+    audio_signed = get_signed_url(audio_path)
+
+    return {
+        "video_url": video_signed,
+        "image_url": image_signed,
+        "audio_url": audio_signed
+    }, 200
 
 @app.route("/")
 def home():
