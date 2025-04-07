@@ -253,6 +253,7 @@ def upload_and_generate():
 def get_signed_urls():
     data = request.json
     uuid = data.get("uuid")
+    user_id = data.get("user_id")
 
     if not uuid:
         return {"error": "UUID is required"}, 400
