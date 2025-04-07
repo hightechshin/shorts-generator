@@ -308,7 +308,7 @@ if needs_refresh:
     )
     print("📦 PATCH 응답:", patch_res.status_code, patch_res.text)
         if patch_res.status_code not in [200, 204]:
-        print("❌ signed_created_at 업데이트 실패:", patch_res.text)
+            print("❌ signed_created_at 업데이트 실패:", patch_res.text)
 
         signed_created_at = signed_time  # 응답용으로 갱신
 
