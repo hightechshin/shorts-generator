@@ -23,7 +23,7 @@ def scheduled_cleanup():
         print(f"❌ TTL cleanup 실패: {e}\n")
 
 scheduler = BackgroundScheduler()
-scheduler.add_job(scheduled_cleanup, 'interval', seconds=30)
+scheduler.add_job(scheduled_cleanup, 'interval', hours=1)
 scheduler.start()
 
 # 서버 종료 시 스케줄러 종료
