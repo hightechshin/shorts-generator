@@ -282,65 +282,49 @@ def get_signed_urls():
     audio_path = video_row.get("audio_path")
     signed_created_at = video_row.get("signed_created_at")
 
-    # ✅ ✅ ✅ ✅ ✅
-    # 여기 ↓ 에 넣어라
-    from datetime import datetime, timedelta
-    needs_refresh = False
-    if not signed_created_at:
-        needs_refresh = True
-    else:
-        try:
-            last_time = datetime.fromisoformat(signed_created_at)
-            if datetime.utcnow() - last_time > timedelta(hours=1):
-                needs_refresh = True
-        except:
+    # 1. signed_created_at 만료 여부 체크
+needs_refresh = False
+if not signed_created_at:
+    needs_refresh = True
+else:
+    try:
+        last_time = datetime.fromisoformat(signed_created_at)
+        if datetime.utcnow() - last_time > timedelta(hours=1):
             needs_refresh = True
+    except:
+        needs_refresh = True
 
-    if needs_refresh:
-        signed_time = datetime.utcnow().isoformat()
-        patch_res = requests.patch(
-            f"{SUPABASE_REST}/videos?uuid=eq.{uuid}",
-            headers={
-                "apikey": SUPABASE_SERVICE_KEY,
-                "Authorization": f"Bearer {SUPABASE_SERVICE_KEY}",
-                "Content-Type": "application/json"
-            },
-            json={"signed_created_at": signed_time}
-        )
-        if patch_res.status_code not in [200, 204]:
-            print("❌ signed_created_at 업데이트 실패:", patch_res.text)
-        signed_created_at = signed_time  # 최종 응답용
-
-    # 3. signed URL 생성
-    video_signed = get_signed_url(video_path)
-    image_signed = get_signed_url(image_path)
-    audio_signed = get_signed_url(audio_path)
-
-    # 4. signed_created_at이 없으면 지금 시간으로 DB 업데이트
-     if signed_created_at:
-        signed_dt = datetime.fromisoformat(signed_created_at)
-        expired = datetime.utcnow() > signed_dt + timedelta(hours=1)
-    else:
-        expired = True  # 없으면 무조건 재발급
-    
-    if expired:
-        signed_time = datetime.utcnow().isoformat()
-        patch_res = requests.patch(
-            f"{SUPABASE_REST}/videos?uuid=eq.{uuid}",
-            headers={...},
-            json={"signed_created_at": signed_time}
+# 2. 만료되었으면 signed_created_at 업데이트
+if needs_refresh:
+    signed_time = datetime.utcnow().isoformat()
+    patch_res = requests.patch(
+        f"{SUPABASE_REST}/videos?uuid=eq.{uuid}",
+        headers={
+            "apikey": SUPABASE_SERVICE_KEY,
+            "Authorization": f"Bearer {SUPABASE_SERVICE_KEY}",
+            "Content-Type": "application/json"
+        },
+        json={"signed_created_at": signed_time}
     )
     print("📦 PATCH 응답:", patch_res.status_code, patch_res.text)
-        if patch_res.status_code not in [200, 204]:
-            print("❌ Supabase signed_created_at 업데이트 실패:", patch_res.text)
-        signed_created_at = signed_time  # 응답에 함께 넣기 위해 할당
+    if patch_res.status_code not in [200, 204]:
+        print("❌ signed_created_at 업데이트 실패:", patch_res.text)
 
-    return {
-        "video_url": video_signed,
-        "image_url": image_signed,
-        "audio_url": audio_signed,
-        "signed_created_at": signed_created_at
-    }, 200
+    signed_created_at = signed_time  # 응답용으로 갱신
+
+# 3. signed URL 생성
+video_signed = get_signed_url(video_path)
+image_signed = get_signed_url(image_path)
+audio_signed = get_signed_url(audio_path)
+
+# 4. 최종 응답
+return {
+    "video_url": video_signed,
+    "image_url": image_signed,
+    "audio_url": audio_signed,
+    "signed_created_at": signed_created_at
+}, 200
+
 
 @app.route("/cleanup_ttl", methods=["POST"])
 def cleanup_ttl():
