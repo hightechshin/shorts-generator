@@ -312,18 +312,19 @@ if needs_refresh:
 
     signed_created_at = signed_time  # 응답용으로 갱신
 
-        # 3. signed URL 생성
-        video_signed = get_signed_url(video_path)
-        image_signed = get_signed_url(image_path)
-        audio_signed = get_signed_url(audio_path)
-    
-        # 4. 최종 응답
-        return {
-            "video_url": video_signed,
-            "image_url": image_signed,
-            "audio_url": audio_signed,
-            "signed_created_at": signed_created_at
-        }, 200
+# ✅ 이 아래는 if 바깥!
+# 3. signed URL 생성
+video_signed = get_signed_url(video_path)
+image_signed = get_signed_url(image_path)
+audio_signed = get_signed_url(audio_path)
+
+# 4. 최종 응답
+return {
+    "video_url": video_signed,
+    "image_url": image_signed,
+    "audio_url": audio_signed,
+    "signed_created_at": signed_created_at
+}, 200
 
 
 
