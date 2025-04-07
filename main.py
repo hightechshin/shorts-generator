@@ -177,12 +177,16 @@ def upload_and_generate():
             return {"error": "Failed to generate one or more signed URLs"}, 500
 
         db_data = {
+            "uuid": uid,
             "image_path": image_path_db,
             "audio_path": audio_path_db,
             "video_path": video_path,
+            "image_url": image_signed_url,
+            "audio_url": audio_signed_url,
+            "video_url": video_signed_url,
+            "user_id":user_id,
             "text": text,
-            "created_at": datetime.utcnow().isoformat(),
-            "user_id": user_id,
+            "created_at": datetime.utcnow().isoformat()
         }
 
         res = requests.post(
