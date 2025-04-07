@@ -6,7 +6,7 @@ import uuid
 import textwrap
 import time
 from flask import Flask, request
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from pydub import AudioSegment
 
 app = Flask(__name__)
@@ -52,6 +52,38 @@ def get_signed_url(file_name):
         signed_path = res.json().get("signedURL")
         return f"{SUPABASE_STORAGE}{signed_path}"
     return None
+
+from datetime import datetime, timedelta
+
+def delete_expired_signed_urls():
+    """Supabase DB에서 1시간 이상 지난 signed_* 필드를 삭제"""
+    cutoff = datetime.utcnow() - timedelta(hours=1)
+    cutoff_iso = cutoff.isoformat()
+
+    headers = {
+        "apikey": SUPABASE_SERVICE_KEY,
+        "Authorization": f"Bearer {SUPABASE_SERVICE_KEY}",
+        "Content-Type": "application/json",
+        "Prefer": "return=representation"
+    }
+
+    # Supabase REST API - PATCH
+    payload = {
+        "video_signed_url": None,
+        "audio_signed_url": None,
+        "image_signed_url": None,
+        "signed_created_at": None
+    }
+
+    # 필터: signed_created_at이 1시간보다 이전이면
+    url = f"{SUPABASE_REST}/videos?signed_created_at=lt.{cutoff_iso}"
+
+    res = requests.patch(url, headers=headers, json=payload)
+
+    if res.status_code in [200, 204]:
+        print("✅ TTL cleanup 완료")
+    else:
+        print("❌ TTL cleanup 실패:", res.text)
 
 def supabase_get_video_by_uuid(uuid):
     res = requests.get(
@@ -279,6 +311,13 @@ def get_signed_urls():
         "signed_created_at": signed_created_at
     }, 200
 
+@app.route("/cleanup_ttl", methods=["POST"])
+def cleanup_ttl():
+    try:
+        delete_expired_signed_urls()
+        return {"status": "cleanup completed"}, 200
+    except Exception as e:
+        return {"error": str(e)}, 500
 
 
 @app.route("/")
