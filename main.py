@@ -181,9 +181,9 @@ def upload_and_generate():
             "image_path": image_path_db,
             "audio_path": audio_path_db,
             "video_path": video_path,
-            "image_url": image_signed_url,
-            "audio_url": audio_signed_url,
-            "video_url": video_signed_url,
+            "image_signed_url": image_signed_url,
+            "audio_signed_url": audio_signed_url,
+            "video_signed_url": video_signed_url,
             "user_id":user_id,
             "text": text,
             "created_at": datetime.utcnow().isoformat()
