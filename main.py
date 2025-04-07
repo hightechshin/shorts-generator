@@ -201,14 +201,17 @@ def upload_and_generate():
             json=db_data
         )
 
-        if res.status_code not in [200, 201]:
-            return {"error": "DB insert failed", "detail": res.text}, 500
-
+        try:
+            log_id = res.json()[0]["id"]
+        except Exception as e:
+            print("❌ Failed to get log_id:", res.text)
+            log_id = None
+        
         return {
             "video_url": video_signed_url,
             "image_url": image_signed_url,
             "audio_url": audio_signed_url,
-            "log_id": res.json()[0]["id"]
+            "log_id": log_id
         }, 200
 
     except Exception as e:
