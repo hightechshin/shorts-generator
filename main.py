@@ -317,19 +317,20 @@ def get_signed_urls():
     audio_signed = get_signed_url(audio_path)
 
     # 4. signed_created_at이 없으면 지금 시간으로 DB 업데이트
-    if not signed_created_at:
+     if signed_created_at:
+        signed_dt = datetime.fromisoformat(signed_created_at)
+        expired = datetime.utcnow() > signed_dt + timedelta(hours=1)
+    else:
+        expired = True  # 없으면 무조건 재발급
+    
+    if expired:
         signed_time = datetime.utcnow().isoformat()
-
         patch_res = requests.patch(
             f"{SUPABASE_REST}/videos?uuid=eq.{uuid}",
-            headers={
-                "apikey": SUPABASE_SERVICE_KEY,
-                "Authorization": f"Bearer {SUPABASE_SERVICE_KEY}",
-                "Content-Type": "application/json"
-            },
+            headers={...},
             json={"signed_created_at": signed_time}
-        )
-
+    )
+    print("📦 PATCH 응답:", patch_res.status_code, patch_res.text)
         if patch_res.status_code not in [200, 204]:
             print("❌ Supabase signed_created_at 업데이트 실패:", patch_res.text)
         signed_created_at = signed_time  # 응답에 함께 넣기 위해 할당
