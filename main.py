@@ -77,6 +77,7 @@ def upload_and_generate():
     image_url = fix_url(request.form.get("image_url"))
     audio_url = fix_url(request.form.get("mp3_url"))
     text = request.form.get("text")
+    user_id = request.form.get("user_id")  # ✅ 요기 추가
 
     if not image_url or not audio_url or not text:
         return {"error": "image_url, mp3_url, text are required"}, 400
@@ -181,6 +182,7 @@ def upload_and_generate():
             "video_path": video_path,
             "text": text,
             "created_at": datetime.utcnow().isoformat()
+            "user_id": user_id
         }
 
         res = requests.post(
