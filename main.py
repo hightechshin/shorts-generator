@@ -181,8 +181,8 @@ def upload_and_generate():
             "audio_path": audio_path_db,
             "video_path": video_path,
             "text": text,
-            "created_at": datetime.utcnow().isoformat()
-            "user_id": user_id
+            "created_at": datetime.utcnow().isoformat(),
+            "user_id": user_id,
         }
 
         res = requests.post(
