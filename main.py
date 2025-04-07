@@ -239,6 +239,10 @@ def get_signed_urls():
 
     video_row = res.json()[0]
 
+     # 2. ✅ 유저 인증 체크
+    if user_id != video_row["user_id"]:
+        return {"error": "Unauthorized access"}, 403
+
     # 2. 필요한 경로 추출
     video_path = video_row.get("video_path")
     image_path = video_row.get("image_path")
