@@ -8,8 +8,26 @@ import time
 from flask import Flask, request
 from datetime import datetime, timezone, timedelta
 from pydub import AudioSegment
+from apscheduler.schedulers.background import BackgroundScheduler
+import atexit
 
 app = Flask(__name__)
+
+# ⏱ TTL 자동정리 스케줄러 설정
+def scheduled_cleanup():
+    print(f"🧹 TTL cleanup 시작 at {datetime.utcnow().isoformat()}")
+    try:
+        delete_expired_signed_urls()
+        print("✅ TTL cleanup 완료\n")
+    except Exception as e:
+        print(f"❌ TTL cleanup 실패: {e}\n")
+
+scheduler = BackgroundScheduler()
+scheduler.add_job(scheduled_cleanup, 'interval', hours=1)
+scheduler.start()
+
+# 서버 종료 시 스케줄러 종료
+atexit.register(lambda: scheduler.shutdown())
 
 UPLOAD_FOLDER = "uploads"
 OUTPUT_FOLDER = "outputs"
@@ -336,28 +354,6 @@ def cleanup_ttl():
         return {"status": "cleanup completed"}, 200
     except Exception as e:
         return {"error": str(e)}, 500
-def force_ttl_cleanup_debug():
-    cutoff = datetime.utcnow() - timedelta(hours=1)
-    cutoff_iso = cutoff.isoformat()
-
-    url = f"{SUPABASE_REST}/videos?signed_created_at=lt.{cutoff_iso}&uuid=not.is.null"
-
-    payload = {
-        "video_signed_url": None,
-        "audio_signed_url": None,
-        "image_signed_url": None,
-        "signed_created_at": None
-    }
-
-    headers = {
-        "apikey": SUPABASE_SERVICE_KEY,
-        "Authorization": f"Bearer {SUPABASE_SERVICE_KEY}",
-        "Content-Type": "application/json",
-        "Prefer": "return=representation"
-    }
-
-    res = requests.patch(url, headers=headers, json=payload)
-    print("🧪 강제 TTL cleanup 응답:", res.status_code, res.text)
 
 
 @app.route("/")
