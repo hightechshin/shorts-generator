@@ -6,7 +6,7 @@ import uuid
 import textwrap
 import time
 from flask import Flask, request
-from datetime import datetime
+from datetime import datetime, timezone
 from pydub import AudioSegment
 
 app = Flask(__name__)
@@ -24,6 +24,7 @@ SUPABASE_UPLOAD = f"{SUPABASE_BASE}/{SUPABASE_BUCKET}"
 SUPABASE_SIGN = f"{SUPABASE_BASE}/sign/{SUPABASE_BUCKET}"
 SUPABASE_SERVICE_KEY = os.environ['SUPABASE_SERVICE_ROLE']
 SUPABASE_REST = "https://bxrpebzmcgftbnlfdrre.supabase.co/rest/v1"
+TTL_SECONDS = 3600
 
 def fix_url(url):
     return url if url and url.startswith("http") else f"https:{url}" if url else None
@@ -39,25 +40,37 @@ def upload_to_supabase(file_content, file_name, file_type):
 
 def get_signed_url(file_name):
     if file_name.startswith("uploads/"):
-        file_name = file_name.replace("uploads/", "", 1)  # 딱 처음 한 번만
+        file_name = file_name.replace("uploads/", "", 1)
 
     url = f"{SUPABASE_STORAGE}/object/sign/{SUPABASE_BUCKET}/{file_name}"
     headers = {
         "Authorization": f"Bearer {SUPABASE_SERVICE_KEY}",
         "Content-Type": "application/json"
     }
-    res = requests.post(url, headers=headers, json={"expiresIn": 3600})
-    
+    res = requests.post(url, headers=headers, json={"expiresIn": TTL_SECONDS})
     if res.status_code == 200:
-        signed_path = res.json().get("signedURL")  # → /object/sign/... 형식
-        final_url = f"{SUPABASE_STORAGE}{signed_path}"
-        print("✅ 최종 Signed URL:", final_url)
-        return final_url
-    else:
-        print("❌ Failed to generate signed URL:", res.text)
-        return None
+        signed_path = res.json().get("signedURL")
+        return f"{SUPABASE_STORAGE}{signed_path}"
+    return None
 
+def supabase_get_video_by_uuid(uuid):
+    res = requests.get(
+        f"{SUPABASE_REST}/videos?uuid=eq.{uuid}",
+        headers={"apikey": SUPABASE_SERVICE_KEY, "Authorization": f"Bearer {SUPABASE_SERVICE_KEY}"}
+    )
+    return res.json()[0] if res.status_code == 200 and res.json() else None
 
+def supabase_update_signed_urls(uuid, data: dict):
+    res = requests.patch(
+        f"{SUPABASE_REST}/videos?uuid=eq.{uuid}",
+        headers={
+            "apikey": SUPABASE_SERVICE_KEY,
+            "Authorization": f"Bearer {SUPABASE_SERVICE_KEY}",
+            "Content-Type": "application/json"
+        },
+        json=data
+    )
+    return res.status_code in [200, 204]
 
 @app.route("/upload_and_generate", methods=["POST"])
 def upload_and_generate():
@@ -88,7 +101,6 @@ def upload_and_generate():
         with open(audio_path, "wb") as f:
             f.write(r_audio.content)
 
-        # 자막 분할 및 타이밍 계산
         audio = AudioSegment.from_file(audio_path)
         audio_duration = audio.duration_seconds
         lines = textwrap.wrap(text.strip(), width=14)
@@ -99,7 +111,6 @@ def upload_and_generate():
             end = round(start + seconds_per_line, 2)
             subtitles.append({"start": start, "end": end, "text": line})
 
-        # drawtext 필터 생성
         font_path = "NotoSansKR-VF.ttf"
         drawtext_filters = []
         for sub in subtitles:
@@ -141,33 +152,29 @@ def upload_and_generate():
         if not os.path.exists(output_path):
             return {"error": "Output file not found after FFmpeg"}, 500
 
-        # 파일명 기준 path 구성
         video_path = f"uploads/{video_name}"
         audio_path_db = f"uploads/{audio_name}"
         image_path_db = f"uploads/{image_name}"
-        
-        # 업로드
+
         with open(output_path, "rb") as f:
             video_uploaded = upload_to_supabase(f.read(), video_name, "video/mp4")
         with open(audio_path, "rb") as f:
             audio_uploaded = upload_to_supabase(f.read(), audio_name, "audio/mpeg")
         with open(image_path, "rb") as f:
             image_uploaded = upload_to_supabase(f.read(), image_name, "image/jpeg")
-        
+
         if not (video_uploaded and image_uploaded and audio_uploaded):
             return {"error": "Upload to Supabase failed"}, 500
-        
-        time.sleep(2)  # Supabase 처리 지연 방지
-        
-        # ✅ signed URL은 응답에만 사용
+
+        time.sleep(2)
+
         video_signed_url = get_signed_url(video_name)
         audio_signed_url = get_signed_url(audio_name)
         image_signed_url = get_signed_url(image_name)
-        
+
         if not all([video_signed_url, audio_signed_url, image_signed_url]):
             return {"error": "Failed to generate one or more signed URLs"}, 500
-        
-        # ✅ DB에는 path만 저장
+
         db_data = {
             "image_path": image_path_db,
             "audio_path": audio_path_db,
@@ -175,7 +182,7 @@ def upload_and_generate():
             "text": text,
             "created_at": datetime.utcnow().isoformat()
         }
-        
+
         res = requests.post(
             f"{SUPABASE_REST}/videos",
             headers={
@@ -186,11 +193,10 @@ def upload_and_generate():
             },
             json=db_data
         )
-        
+
         if res.status_code not in [200, 201]:
             return {"error": "DB insert failed", "detail": res.text}, 500
-        
-        # ✅ 응답에는 signed URL도 포함
+
         return {
             "video_url": video_signed_url,
             "image_url": image_signed_url,
@@ -198,30 +204,68 @@ def upload_and_generate():
             "log_id": res.json()[0]["id"]
         }, 200
 
-
     except Exception as e:
         return {"error": str(e)}, 500
-        
+
 @app.route("/get_signed_urls", methods=["POST"])
 def get_signed_urls():
     data = request.json
-    video_path = data.get("video_path")
-    image_path = data.get("image_path")
-    audio_path = data.get("audio_path")
+    uuid = data.get("uuid")
+    if not uuid:
+        return {"error": "Missing uuid"}, 400
 
-    video_signed = get_signed_url(video_path) if video_path else None
-    image_signed = get_signed_url(image_path) if image_path else None
-    audio_signed = get_signed_url(audio_path) if audio_path else None
+    video = supabase_get_video_by_uuid(uuid)
+    if not video:
+        return {"error": "Video not found"}, 404
+
+    created_at = video.get("signed_created_at")
+    now = datetime.now(timezone.utc)
+
+    if created_at:
+        created_time = datetime.fromisoformat(created_at.replace("Z", "+00:00"))
+        elapsed = (now - created_time).total_seconds()
+
+        if elapsed > TTL_SECONDS:
+            supabase_update_signed_urls(uuid, {
+                "video_signed_url": None,
+                "image_signed_url": None,
+                "audio_signed_url": None,
+                "signed_created_at": None
+            })
+            return {"error": "Signed URL expired", "refresh_required": True}, 403
+
+        return {
+            "video_url": video.get("video_signed_url"),
+            "image_url": video.get("image_signed_url"),
+            "audio_url": video.get("audio_signed_url"),
+            "signed_created_at": created_at,
+            "ttl_remaining": int(TTL_SECONDS - elapsed)
+        }, 200
+
+    new_video_url = get_signed_url(video["video_path"])
+    new_image_url = get_signed_url(video["image_path"])
+    new_audio_url = get_signed_url(video["audio_path"])
+    now_str = now.isoformat().replace("+00:00", "Z")
+
+    supabase_update_signed_urls(uuid, {
+        "video_signed_url": new_video_url,
+        "image_signed_url": new_image_url,
+        "audio_signed_url": new_audio_url,
+        "signed_created_at": now_str
+    })
 
     return {
-        "video_url": video_signed,
-        "image_url": image_signed,
-        "audio_url": audio_signed
+        "video_url": new_video_url,
+        "image_url": new_image_url,
+        "audio_url": new_audio_url,
+        "signed_created_at": now_str,
+        "ttl_remaining": TTL_SECONDS
     }, 200
 
 @app.route("/")
 def home():
     return "✅ Shorts Generator Flask 서버 실행 중"
+
 
 
 
