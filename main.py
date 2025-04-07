@@ -282,6 +282,35 @@ def get_signed_urls():
     audio_path = video_row.get("audio_path")
     signed_created_at = video_row.get("signed_created_at")
 
+    # ✅ ✅ ✅ ✅ ✅
+    # 여기 ↓ 에 넣어라
+    from datetime import datetime, timedelta
+    needs_refresh = False
+    if not signed_created_at:
+        needs_refresh = True
+    else:
+        try:
+            last_time = datetime.fromisoformat(signed_created_at)
+            if datetime.utcnow() - last_time > timedelta(hours=1):
+                needs_refresh = True
+        except:
+            needs_refresh = True
+
+    if needs_refresh:
+        signed_time = datetime.utcnow().isoformat()
+        patch_res = requests.patch(
+            f"{SUPABASE_REST}/videos?uuid=eq.{uuid}",
+            headers={
+                "apikey": SUPABASE_SERVICE_KEY,
+                "Authorization": f"Bearer {SUPABASE_SERVICE_KEY}",
+                "Content-Type": "application/json"
+            },
+            json={"signed_created_at": signed_time}
+        )
+        if patch_res.status_code not in [200, 204]:
+            print("❌ signed_created_at 업데이트 실패:", patch_res.text)
+        signed_created_at = signed_time  # 최종 응답용
+
     # 3. signed URL 생성
     video_signed = get_signed_url(video_path)
     image_signed = get_signed_url(image_path)
