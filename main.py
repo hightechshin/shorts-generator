@@ -315,6 +315,12 @@ def get_signed_urls():
     # 5. 만료되었으면 signed_created_at 업데이트
     if needs_refresh:
         signed_time = datetime.utcnow().isoformat()
+
+            # 새 URL 생성
+        video_signed = get_signed_url(video_path)
+        image_signed = get_signed_url(image_path)
+        audio_signed = get_signed_url(audio_path)
+        
         patch_res = requests.patch(
             f"{SUPABASE_REST}/videos?uuid=eq.{uuid}",
             headers={
