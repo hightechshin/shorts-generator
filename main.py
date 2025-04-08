@@ -276,7 +276,6 @@ def get_signed_urls():
     if not uuid:
         return {"error": "UUID is required"}, 400
 
-    # 1. Supabase에서 영상 데이터 가져오기
     res = requests.get(
         f"{SUPABASE_REST}/videos?uuid=eq.{uuid}",
         headers={
@@ -290,17 +289,18 @@ def get_signed_urls():
 
     video_row = res.json()[0]
 
-    # 2. ✅ 유저 인증 체크
     if user_id != video_row["user_id"]:
         return {"error": "Unauthorized access"}, 403
 
-    # 3. 필요한 경로 추출
     video_path = video_row.get("video_path")
     image_path = video_row.get("image_path")
     audio_path = video_row.get("audio_path")
     signed_created_at = video_row.get("signed_created_at")
 
-    # 4. signed_created_at 만료 여부 체크
+    video_old = video_row.get("video_signed_url")
+    image_old = video_row.get("image_signed_url")
+    audio_old = video_row.get("audio_signed_url")
+
     needs_refresh = False
     if not signed_created_at:
         needs_refresh = True
@@ -312,41 +312,54 @@ def get_signed_urls():
         except:
             needs_refresh = True
 
-    # 5. 만료되었으면 signed_created_at 업데이트
     if needs_refresh:
         signed_time = datetime.utcnow().isoformat()
 
-            # 새 URL 생성
+        # 새 URL 생성
         video_signed = get_signed_url(video_path)
         image_signed = get_signed_url(image_path)
         audio_signed = get_signed_url(audio_path)
-        
-        patch_res = requests.patch(
-            f"{SUPABASE_REST}/videos?uuid=eq.{uuid}",
-            headers={
-                "apikey": SUPABASE_SERVICE_KEY,
-                "Authorization": f"Bearer {SUPABASE_SERVICE_KEY}",
-                "Content-Type": "application/json"
-            },
-            json={"signed_created_at": signed_time}
-        )
-        print("📦 PATCH 응답:", patch_res.status_code, patch_res.text)
-        if patch_res.status_code not in [200, 204]:
-            print("❌ signed_created_at 업데이트 실패:", patch_res.text)
-        signed_created_at = signed_time
 
-    # 6. signed URL 생성
-    video_signed = get_signed_url(video_path)
-    image_signed = get_signed_url(image_path)
-    audio_signed = get_signed_url(audio_path)
+        print("📌 새 signed URL들:")
+        print("🎞 video:", video_signed)
+        print("🖼 image:", image_signed)
+        print("🔊 audio:", audio_signed)
 
-    # 7. 최종 응답
+        # 기존 값과 다르면만 PATCH
+        if (video_signed != video_old) or (image_signed != image_old) or (audio_signed != audio_old):
+            patch_res = requests.patch(
+                f"{SUPABASE_REST}/videos?uuid=eq.{uuid}",
+                headers={
+                    "apikey": SUPABASE_SERVICE_KEY,
+                    "Authorization": f"Bearer {SUPABASE_SERVICE_KEY}",
+                    "Content-Type": "application/json"
+                },
+                json={
+                    "signed_created_at": signed_time,
+                    "video_signed_url": video_signed,
+                    "image_signed_url": image_signed,
+                    "audio_signed_url": audio_signed
+                }
+            )
+            print("📦 PATCH 응답:", patch_res.status_code, patch_res.text)
+            if patch_res.status_code not in [200, 204]:
+                print("❌ signed URL 업데이트 실패:", patch_res.text)
+
+            signed_created_at = signed_time  # 업데이트 되었으니 갱신
+
+    else:
+        # 만료 안 됐을 땐 기존 값 그대로 사용
+        video_signed = video_old
+        image_signed = image_old
+        audio_signed = audio_old
+
     return {
         "video_url": video_signed,
         "image_url": image_signed,
         "audio_url": audio_signed,
         "signed_created_at": signed_created_at
     }, 200
+
 
 
 
