@@ -285,7 +285,7 @@ def upload_and_generate():
         print("🎬 FFmpeg Command:")
         print(" ".join(command))
         print(f"📏 overlay width, height: {overlay_width} {overlay_height}")
-        print(f"📍 overlay position: {overlay_x} {overlay_y}"))
+        print(f"📍 overlay position: {overlay_x} {overlay_y}")
         print("🎞️ Final output path:", output_path)
 
 
