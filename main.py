@@ -189,54 +189,42 @@ def upload_and_generate():
         lines = textwrap.wrap(text.strip(), width=14)
         seconds_per_line = audio_duration / len(lines)
 
+        # drawtext 생성 함수
         subtitles = []
         for i, line in enumerate(lines):
             start = round(i * seconds_per_line, 2)
             end = round(start + seconds_per_line, 2)
             subtitles.append({"start": start, "end": end, "text": line})
-
-        font_path = "NotoSansKR-VF.ttf"
-        drawtext_filters = []
+        
+        # 템플릿 기준 y 위치 설정
+        base_y = headline_area["y"]  # 예: 60
+        line_spacing = font_size + 8  # 줄 간격 설정
         
         font_path = "NotoSansKR-VF.ttf"
         drawtext_filters = []
         
-        # 🧩 자막 기본 위치 계산
-        base_y = template["headline_area"]["y"]
-        area_h = template["headline_area"]["h"]
-        line_gap = area_h // len(subtitles)  # 줄 간격 자동 계산
-        
-        for i, sub in enumerate(subtitles):
-            y = base_y + i * line_gap
-        
+        for idx, sub in enumerate(subtitles):
+            y_position = base_y + idx * line_spacing
             alpha_expr = (
                 f"if(lt(t,{sub['start']}),0,"
                 f"if(lt(t,{sub['start']}+0.5),(t-{sub['start']})/0.5,"
-                f"if(lt(t,{sub['end']}-0.5),1,"
-                f"(1-(t-{sub['end']}+0.5)/0.5))))"
+                f"if(lt(t,{sub['end']}-0.5),1,(1-(t-{sub['end']}+0.5)/0.5))))"
             )
-        
             safe_text = sub['text'].replace("'", r"\'").replace(",", r"\,")
-            
+        
             drawtext = (
                 f"drawtext=fontfile='{font_path}':"
                 f"text='{safe_text}':"
                 f"fontcolor={font_color}:fontsize={font_size}:"
-                f"x=(w-text_w)/2:y={y}:"
+                f"x=(w-text_w)/2:y={y_position}:"
                 f"alpha='{alpha_expr}':"
-                f"borderw=4:bordercolor=black:"
-                f"box=1:boxcolor={box_color}:boxborderw=20:"
+                f"borderw=4:bordercolor=black:box=1:boxcolor={box_color}:boxborderw=20:"
                 f"enable='between(t,{sub['start']},{sub['end']})'"
             )
-        
             drawtext_filters.append(drawtext)
+        
+        filterchain = "scale=1080:1920," + ",".join(drawtext_filters)
 
-
-        filterchain = (
-            f"[1:v]scale={overlay_width}:{overlay_height}[scaled];"
-            f"[0:v][scaled]overlay={overlay_x}:{overlay_y},"
-            + ",".join(drawtext_filters)
-        )
         
         print("🧩 TEMPLATE DEBUG ===========================")
         print("📌 template_id:", template_id)
