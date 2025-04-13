@@ -270,7 +270,7 @@ def upload_and_generate():
         )
 
         try:
-            log_id = res.json()[0]["id"]
+            log_id = res.json()[0]["uuid"]
         except Exception as e:
             print("❌ Failed to get log_id:", res.text)
             log_id = None
