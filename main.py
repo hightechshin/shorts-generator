@@ -157,8 +157,13 @@ def upload_and_generate():
         audio_duration = audio.duration_seconds
 
         # ✅ 템플릿 정보 가져오기
-        template_res = requests.get(f"{SUPABASE_REST}/templates?select=*&template_id=eq.{template_id}",
-            headers={"apikey": SUPABASE_SERVICE_KEY, "Authorization": f"Bearer {SUPABASE_SERVICE_KEY}"})
+        template_res = requests.get(
+            f"{SUPABASE_REST}/templates?select=*&template_id=eq.{template_id}",
+            headers={
+                "apikey": SUPABASE_SERVICE_KEY,
+                "Authorization": f"Bearer {SUPABASE_SERVICE_KEY}"
+            }
+        )
 
         if template_res.status_code != 200 or not template_res.json():
             return {"error": "Failed to fetch template from DB"}, 400
@@ -168,7 +173,18 @@ def upload_and_generate():
         font_size = template.get("font_size", 54)
         font_color = template.get("font_color", "#FFFFFF")
         box_color = template.get("box_color", "#000000AA")
-        headline_area = template.get("headline_area")
+        overlay_x = template.get("overlay_x", 0)
+        overlay_y = template.get("overlay_y", 0)
+        overlay_width = template.get("overlay_width", 1080)
+        overlay_height = template.get("overlay_height", 1080)
+        template_image_url = fix_url(template.get("template_image_url"))
+
+        # 템플릿 이미지 다운로드
+        r_tpl = requests.get(template_image_url)
+        template_name = f"{uid}_tpl.jpg"
+        template_path = os.path.join(UPLOAD_FOLDER, template_name)
+        with open(template_path, "wb") as f:
+            f.write(r_tpl.content)
 
         lines = textwrap.wrap(text.strip(), width=14)
         seconds_per_line = audio_duration / len(lines)
@@ -184,7 +200,7 @@ def upload_and_generate():
         for sub in subtitles:
             alpha_expr = (
                 f"if(lt(t,{sub['start']}),0,"
-                f"if(lt(t,{sub['start']}+0.5),(t-{sub['start']})/0.5," 
+                f"if(lt(t,{sub['start']}+0.5),(t-{sub['start']})/0.5,"
                 f"if(lt(t,{sub['end']}-0.5),1,(1-(t-{sub['end']}+0.5)/0.5))))"
             )
             safe_text = sub['text'].replace("'", r"\'").replace(",", r"\,")
@@ -199,19 +215,23 @@ def upload_and_generate():
             )
             drawtext_filters.append(drawtext)
 
-        filterchain = "scale=1080:1920," + ",".join(drawtext_filters)
+        filterchain = (
+            f"[1:v]scale={overlay_width}:{overlay_height}[scaled];"
+            f"[0:v][scaled]overlay={overlay_x}:{overlay_y},"
+            + ",".join(drawtext_filters)
+        )
 
         command = [
             "ffmpeg", "-y",
             "-i", template_path,
-            "-i", user_image_path,
-            "-filter_complex",
-            f"[1:v]scale={overlay_width}:{overlay_height}[scaled];[0:v][scaled]overlay={overlay_x}:{overlay_y}",
-            "-c:v", "libx264",
-            "-preset", "ultrafast",
+            "-i", image_path,
+            "-i", audio_path,
+            "-filter_complex", filterchain,
+            "-map", "2:a",
+            "-shortest",
+            "-c:v", "libx264", "-preset", "ultrafast",
             output_path
         ]
-
 
         process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         stdout, stderr = process.communicate(timeout=180)
@@ -286,6 +306,7 @@ def upload_and_generate():
 
     except Exception as e:
         return {"error": str(e)}, 500
+
 
 
 @app.route("/get_signed_urls", methods=["POST"])
