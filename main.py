@@ -217,9 +217,11 @@ def upload_and_generate():
         font_path = "NotoSansKR-VF.ttf"
         drawtext_filters = []
         
-        line_spacing = font_size + 8
-        num_lines = len(subtitles)
-        
+        # ✅ dummy drawtext: 최소 하나는 출력되게
+        drawtext_filters.append(
+            "drawtext=fontfile='NotoSansKR-VF.ttf':text=' ':"
+            "fontcolor=white:fontsize=1:x=10:y=10:enable='between(t,0,0.5)'"
+        )
         line_spacing = font_size + 8
         num_lines = len(subtitles)
         
