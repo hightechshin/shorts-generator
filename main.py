@@ -236,15 +236,15 @@ def upload_and_generate():
         drawtext_filters = []
         
         for sub in subtitles:
-        wrapped_lines = textwrap.wrap(sub["text"], width=14)  # 공백 포함 기준 14자
-        for i, line in enumerate(wrapped_lines):
-            y_position = base_y + i * line_spacing
-            safe_line = line.replace("'", r"\'").replace(",", r"\,")
-            alpha_expr = (
-                f"if(lt(t,{sub['start']}),0,"
-                f"if(lt(t,{sub['start']}+0.5),(t-{sub['start']})/0.5,"
-                f"if(lt(t,{sub['end']}-0.5),1,(1-(t-{sub['end']}+0.5)/0.5))))"
-            )
+            wrapped_lines = textwrap.wrap(sub["text"], width=14)  # 공백 포함 기준 14자
+            for i, line in enumerate(wrapped_lines):
+                y_position = base_y + i * line_spacing
+                safe_line = line.replace("'", r"\'").replace(",", r"\,")
+                alpha_expr = (
+                    f"if(lt(t,{sub['start']}),0,"
+                    f"if(lt(t,{sub['start']}+0.5),(t-{sub['start']})/0.5,"
+                    f"if(lt(t,{sub['end']}-0.5),1,(1-(t-{sub['end']}+0.5)/0.5))))"
+                )
             safe_text = sub['text'].replace("'", r"\'").replace(",", r"\,")
         
             drawtext = (
