@@ -220,6 +220,23 @@ def upload_and_generate():
             f"[0:v][scaled]overlay={overlay_x}:{overlay_y},"
             + ",".join(drawtext_filters)
         )
+        
+        print("🧩 TEMPLATE DEBUG ===========================")
+        print("📌 template_id:", template_id)
+        print("📥 template loaded:", template.get("frame_url"))
+        print("🖼️ overlay area:", template.get("video_area"))
+        print("🖋️ headline_area:", template.get("headline_area"))
+        print("🖋️ bottom_area:", template.get("bottom_area"))
+        print("🔤 font:", template.get("font_family"), template.get("font_size"), template.get("font_color"))
+        print("🧱 box_color:", template.get("box_color"))
+        print("--------------------------------------------")
+        print("📂 image_path:", image_path, "| size:", os.path.getsize(image_path))
+        print("📂 audio_path:", audio_path, "| size:", os.path.getsize(audio_path))
+        print("--------------------------------------------")
+        print("🎬 FFmpeg Command:")
+        print(" ".join(command))
+        print("============================================")
+        
 
         command = [
             "ffmpeg", "-y",
