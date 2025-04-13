@@ -186,10 +186,12 @@ def upload_and_generate():
         font_size = template.get("font_size", 54)
         font_color = template.get("font_color", "#FFFFFF")
         box_color = template.get("box_color", "#000000AA")
-        overlay_x = template.get("overlay_x", 0)
-        overlay_y = template.get("overlay_y", 0)
-        overlay_width = template.get("overlay_width", 1080)
-        overlay_height = template.get("overlay_height", 1080)
+        video_area = template.get("video_area", {})
+        overlay_x = video_area.get("x", 0)
+        overlay_y = video_area.get("y", 0)
+        overlay_width = video_area.get("w", 1080)
+        overlay_height = video_area.get("h", 1080)
+
         template_image_url = fix_url(template.get("frame_url"))
 
         # 템플릿 이미지 다운로드
@@ -282,8 +284,8 @@ def upload_and_generate():
         
         print("🎬 FFmpeg Command:")
         print(" ".join(command))
-        print("📏 overlay width, height:", overlay_width, overlay_height)
-        print("📍 overlay position:", overlay_x, overlay_y)
+        print(f"📏 overlay width, height: {overlay_width} {overlay_height}")
+        print(f"📍 overlay position: {overlay_x} {overlay_y}"))
         print("🎞️ Final output path:", output_path)
 
 
