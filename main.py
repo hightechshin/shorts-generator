@@ -197,24 +197,40 @@ def upload_and_generate():
 
         font_path = "NotoSansKR-VF.ttf"
         drawtext_filters = []
-        for sub in subtitles:
-            print("🖋️ drawtext y=", (overlay_y + overlay_height // 2))  # 현재는 이걸로 고정되었을 확률 높음
+        
+        font_path = "NotoSansKR-VF.ttf"
+        drawtext_filters = []
+        
+        # 🧩 자막 기본 위치 계산
+        base_y = template["headline_area"]["y"]
+        area_h = template["headline_area"]["h"]
+        line_gap = area_h // len(subtitles)  # 줄 간격 자동 계산
+        
+        for i, sub in enumerate(subtitles):
+            y = base_y + i * line_gap
+        
             alpha_expr = (
                 f"if(lt(t,{sub['start']}),0,"
                 f"if(lt(t,{sub['start']}+0.5),(t-{sub['start']})/0.5,"
-                f"if(lt(t,{sub['end']}-0.5),1,(1-(t-{sub['end']}+0.5)/0.5))))"
+                f"if(lt(t,{sub['end']}-0.5),1,"
+                f"(1-(t-{sub['end']}+0.5)/0.5))))"
             )
+        
             safe_text = sub['text'].replace("'", r"\'").replace(",", r"\,")
+            
             drawtext = (
                 f"drawtext=fontfile='{font_path}':"
                 f"text='{safe_text}':"
                 f"fontcolor={font_color}:fontsize={font_size}:"
-                f"x=(w-text_w)/2:y=(h-text_h)/2:"
+                f"x=(w-text_w)/2:y={y}:"
                 f"alpha='{alpha_expr}':"
-                f"borderw=4:bordercolor=black:box=1:boxcolor={box_color}:boxborderw=20:"
+                f"borderw=4:bordercolor=black:"
+                f"box=1:boxcolor={box_color}:boxborderw=20:"
                 f"enable='between(t,{sub['start']},{sub['end']})'"
             )
+        
             drawtext_filters.append(drawtext)
+
 
         filterchain = (
             f"[1:v]scale={overlay_width}:{overlay_height}[scaled];"
