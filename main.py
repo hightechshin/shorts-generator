@@ -216,15 +216,15 @@ def upload_and_generate():
         font_path = "NotoSansKR-VF.ttf"
         drawtext_filters = []
         
-        # ✅ 템플릿 기준 base y 좌표
+        line_spacing = font_size + 8
+        num_lines = len(subtitles)
+        
         if headline_area:
-            base_y = headline_area["y"]
+            base_y = headline_area["y"] + (headline_area["h"] - line_spacing * num_lines) // 2
         elif bottom_area:
-            base_y = bottom_area["y"]
+            base_y = bottom_area["y"] + (bottom_area["h"] - line_spacing * num_lines) // 2
         else:
             base_y = 60
-        
-        line_spacing = font_size + 8
         
         for idx, sub in enumerate(subtitles):
             y_position = base_y + idx * line_spacing
@@ -245,8 +245,10 @@ def upload_and_generate():
                 f"enable='between(t,{sub['start']},{sub['end']})'"
             )
             drawtext_filters.append(drawtext)
+
         
         filterchain = "scale=1080:1920," + ",".join(drawtext_filters)
+        print("🎯 drawtext filter:", drawtext)
 
         
         print("🧩 TEMPLATE DEBUG ===========================")
