@@ -249,7 +249,17 @@ def upload_and_generate():
             drawtext_filters.append(drawtext)
 
         
-        filterchain = "scale=1080:1920," + ",".join(drawtext_filters)
+        filterchain = (
+            f"[1:v]scale={overlay_width}:{overlay_height}[scaled];"
+            f"[0:v][scaled]overlay={overlay_x}:{overlay_y},"
+            + ",".join(drawtext_filters)
+        )
+
+        filter_complex = (
+            f"[1:v]scale={overlay_width}:{overlay_height}[scaled];"
+            f"[0:v][scaled]overlay={overlay_x}:{overlay_y}," +
+            ",".join(drawtext_filters)
+
         print("🎯 drawtext filter:", drawtext)
 
         
@@ -274,12 +284,14 @@ def upload_and_generate():
             "-i", template_path,
             "-i", image_path,
             "-i", audio_path,
-            "-filter_complex",
-            "[1:v]scale=960:1400[scaled];[0:v][scaled]overlay=(W-w)/2:(H-h)/2",
+            "-filter_complex", filter_complex,  # ← 이건 단 하나
             "-map", "2:a",
-            "-shortest", "-c:v", "libx264", "-preset", "ultrafast",
+            "-shortest",
+            "-c:v", "libx264",
+            "-preset", "ultrafast",
             output_path
         ]
+
 
         
         print("🎬 FFmpeg Command:")
