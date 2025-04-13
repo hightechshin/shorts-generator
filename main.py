@@ -233,8 +233,7 @@ def upload_and_generate():
         print("📂 image_path:", image_path, "| size:", os.path.getsize(image_path))
         print("📂 audio_path:", audio_path, "| size:", os.path.getsize(audio_path))
         print("--------------------------------------------")
-        print("🎬 FFmpeg Command:")
-        print(" ".join(command))
+      
         print("============================================")
         
 
@@ -249,6 +248,8 @@ def upload_and_generate():
             "-c:v", "libx264", "-preset", "ultrafast",
             output_path
         ]
+        print("🎬 FFmpeg Command:")
+        print(" ".join(command))
 
         process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         stdout, stderr = process.communicate(timeout=180)
