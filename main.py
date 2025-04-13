@@ -235,8 +235,11 @@ def upload_and_generate():
         font_path = "NotoSansKR-VF.ttf"
         drawtext_filters = []
         
-        for idx, sub in enumerate(subtitles):
-            y_position = base_y + idx * line_spacing
+        for sub in subtitles:
+        wrapped_lines = textwrap.wrap(sub["text"], width=14)  # 공백 포함 기준 14자
+        for i, line in enumerate(wrapped_lines):
+            y_position = base_y + i * line_spacing
+            safe_line = line.replace("'", r"\'").replace(",", r"\,")
             alpha_expr = (
                 f"if(lt(t,{sub['start']}),0,"
                 f"if(lt(t,{sub['start']}+0.5),(t-{sub['start']})/0.5,"
