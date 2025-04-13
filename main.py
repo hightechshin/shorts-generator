@@ -221,11 +221,12 @@ def upload_and_generate():
         num_lines = len(subtitles)
         
         if headline_area:
-            base_y = headline_area["y"] + (headline_area["h"] - line_spacing * num_lines) // 2
+            base_y = max(0, headline_area["y"] + (headline_area["h"] - line_spacing * num_lines) // 2)
         elif bottom_area:
-            base_y = bottom_area["y"] + (bottom_area["h"] - line_spacing * num_lines) // 2
+            base_y = max(0, bottom_area["y"] + (bottom_area["h"] - line_spacing * num_lines) // 2)
         else:
             base_y = 60
+
         
         font_path = "NotoSansKR-VF.ttf"
         drawtext_filters = []
