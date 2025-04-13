@@ -259,6 +259,7 @@ def upload_and_generate():
             f"[1:v]scale={overlay_width}:{overlay_height}[scaled];"
             f"[0:v][scaled]overlay={overlay_x}:{overlay_y}," +
             ",".join(drawtext_filters)
+        )
 
         print("🎯 drawtext filter:", drawtext)
 
