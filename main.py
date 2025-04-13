@@ -127,10 +127,11 @@ def upload_and_generate():
     image_url = fix_url(request.form.get("image_url"))
     audio_url = fix_url(request.form.get("mp3_url"))
     text = request.form.get("text")
-    user_id = request.form.get("user_id")  # ✅ 요기 추가
+    user_id = request.form.get("user_id")
+    template_id = request.form.get("template_id")  # ✅ 추가됨
 
-    if not image_url or not audio_url or not text:
-        return {"error": "image_url, mp3_url, text are required"}, 400
+    if not image_url or not audio_url or not text or not template_id:
+        return {"error": "image_url, mp3_url, text, template_id are required"}, 400
 
     try:
         r_img = requests.get(image_url)
@@ -154,8 +155,24 @@ def upload_and_generate():
 
         audio = AudioSegment.from_file(audio_path)
         audio_duration = audio.duration_seconds
+
+        # ✅ 템플릿 정보 가져오기
+        template_res = requests.get(f"{SUPABASE_REST}/templates?select=*&template_id=eq.{template_id}",
+            headers={"apikey": SUPABASE_SERVICE_KEY, "Authorization": f"Bearer {SUPABASE_SERVICE_KEY}"})
+
+        if template_res.status_code != 200 or not template_res.json():
+            return {"error": "Failed to fetch template from DB"}, 400
+
+        template = template_res.json()[0]
+        font_family = template.get("font_family", "Noto Sans KR")
+        font_size = template.get("font_size", 54)
+        font_color = template.get("font_color", "#FFFFFF")
+        box_color = template.get("box_color", "#000000AA")
+        headline_area = template.get("headline_area")
+
         lines = textwrap.wrap(text.strip(), width=14)
         seconds_per_line = audio_duration / len(lines)
+
         subtitles = []
         for i, line in enumerate(lines):
             start = round(i * seconds_per_line, 2)
@@ -167,17 +184,17 @@ def upload_and_generate():
         for sub in subtitles:
             alpha_expr = (
                 f"if(lt(t,{sub['start']}),0,"
-                f"if(lt(t,{sub['start']}+0.5),(t-{sub['start']})/0.5,"
-                f"if(lt(t,{sub['end']}-0.5),1,"
-                f"(1-(t-{sub['end']}+0.5)/0.5))))"
+                f"if(lt(t,{sub['start']}+0.5),(t-{sub['start']})/0.5," 
+                f"if(lt(t,{sub['end']}-0.5),1,(1-(t-{sub['end']}+0.5)/0.5))))"
             )
             safe_text = sub['text'].replace("'", r"\'").replace(",", r"\,")
             drawtext = (
                 f"drawtext=fontfile='{font_path}':"
                 f"text='{safe_text}':"
-                f"fontcolor=white:fontsize=60:x=(w-text_w)/2:y=(h-text_h)/2:"
+                f"fontcolor={font_color}:fontsize={font_size}:"
+                f"x=(w-text_w)/2:y=(h-text_h)/2:"
                 f"alpha='{alpha_expr}':"
-                f"borderw=4:bordercolor=black:box=1:boxcolor=black@0.5:boxborderw=20:"
+                f"borderw=4:bordercolor=black:box=1:boxcolor={box_color}:boxborderw=20:"
                 f"enable='between(t,{sub['start']},{sub['end']})'"
             )
             drawtext_filters.append(drawtext)
@@ -237,6 +254,7 @@ def upload_and_generate():
             "signed_created_at": datetime.utcnow().isoformat(),
             "user_id": user_id,
             "text": text,
+            "template_id": template_id,
             "created_at": datetime.utcnow().isoformat()
         }
 
@@ -256,7 +274,7 @@ def upload_and_generate():
         except Exception as e:
             print("❌ Failed to get log_id:", res.text)
             log_id = None
-        
+
         return {
             "video_url": video_signed_url,
             "image_url": image_signed_url,
@@ -266,6 +284,7 @@ def upload_and_generate():
 
     except Exception as e:
         return {"error": str(e)}, 500
+
 
 @app.route("/get_signed_urls", methods=["POST"])
 def get_signed_urls():
