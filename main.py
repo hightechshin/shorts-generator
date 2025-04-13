@@ -202,14 +202,16 @@ def upload_and_generate():
         filterchain = "scale=1080:1920," + ",".join(drawtext_filters)
 
         command = [
-            "ffmpeg", "-y", "-loop", "1",
-            "-i", image_path,
-            "-i", audio_path,
-            "-vf", filterchain,
-            "-shortest",
+            "ffmpeg", "-y",
+            "-i", template_path,
+            "-i", user_image_path,
+            "-filter_complex",
+            f"[1:v]scale={overlay_width}:{overlay_height}[scaled];[0:v][scaled]overlay={overlay_x}:{overlay_y}",
+            "-c:v", "libx264",
             "-preset", "ultrafast",
             output_path
         ]
+
 
         process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         stdout, stderr = process.communicate(timeout=180)
