@@ -220,12 +220,16 @@ def upload_and_generate():
         line_spacing = font_size + 8
         num_lines = len(subtitles)
         
+        line_spacing = font_size + 8
+        num_lines = len(subtitles)
+        
         if headline_area:
-            base_y = max(0, headline_area["y"] + (headline_area["h"] - line_spacing * num_lines) // 2)
+            base_y = max(overlay_y, headline_area["y"] + (headline_area["h"] - line_spacing * num_lines) // 2)
         elif bottom_area:
-            base_y = max(0, bottom_area["y"] + (bottom_area["h"] - line_spacing * num_lines) // 2)
+            base_y = max(overlay_y, bottom_area["y"] + (bottom_area["h"] - line_spacing * num_lines) // 2)
         else:
-            base_y = 60
+            base_y = overlay_y  # 최소 템플릿 하단보다 아래서 시작
+
 
         
         font_path = "NotoSansKR-VF.ttf"
