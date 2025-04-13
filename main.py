@@ -198,6 +198,7 @@ def upload_and_generate():
         font_path = "NotoSansKR-VF.ttf"
         drawtext_filters = []
         for sub in subtitles:
+            print("🖋️ drawtext y=", (overlay_y + overlay_height // 2))  # 현재는 이걸로 고정되었을 확률 높음
             alpha_expr = (
                 f"if(lt(t,{sub['start']}),0,"
                 f"if(lt(t,{sub['start']}+0.5),(t-{sub['start']})/0.5,"
@@ -250,6 +251,10 @@ def upload_and_generate():
         ]
         print("🎬 FFmpeg Command:")
         print(" ".join(command))
+        print("📏 overlay width, height:", overlay_width, overlay_height)
+        print("📍 overlay position:", overlay_x, overlay_y)
+        print("🎞️ Final output path:", output_path)
+
 
         process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         stdout, stderr = process.communicate(timeout=180)
