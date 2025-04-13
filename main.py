@@ -1,4 +1,5 @@
 import os
+import json
 import requests
 import subprocess
 import psutil
@@ -169,6 +170,18 @@ def upload_and_generate():
             return {"error": "Failed to fetch template from DB"}, 400
 
         template = template_res.json()[0]
+
+        headline_area_raw = template.get("headline_area")
+        bottom_area_raw = template.get("bottom_area")
+        overlay_area_raw = template.get("video_area")
+        
+        try:
+            headline_area = json.loads(headline_area_raw) if isinstance(headline_area_raw, str) else headline_area_raw
+            bottom_area = json.loads(bottom_area_raw) if isinstance(bottom_area_raw, str) else bottom_area_raw
+            overlay_area = json.loads(overlay_area_raw) if isinstance(overlay_area_raw, str) else overlay_area_raw
+        except Exception as e:
+            return {"error": f"Template JSON parsing error: {str(e)}"}, 500
+            
         font_family = template.get("font_family", "Noto Sans KR")
         font_size = template.get("font_size", 54)
         font_color = template.get("font_color", "#FFFFFF")
@@ -202,6 +215,16 @@ def upload_and_generate():
         
         font_path = "NotoSansKR-VF.ttf"
         drawtext_filters = []
+        
+        # ✅ 템플릿 기준 base y 좌표
+        if headline_area:
+            base_y = headline_area["y"]
+        elif bottom_area:
+            base_y = bottom_area["y"]
+        else:
+            base_y = 60
+        
+        line_spacing = font_size + 8
         
         for idx, sub in enumerate(subtitles):
             y_position = base_y + idx * line_spacing
