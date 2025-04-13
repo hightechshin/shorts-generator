@@ -212,8 +212,7 @@ def upload_and_generate():
             subtitles.append({"start": start, "end": end, "text": line})
         
         # 템플릿 기준 y 위치 설정
-        base_y = headline_area["y"]  # 예: 60
-        line_spacing = font_size + 8  # 줄 간격 설정
+        
         
         font_path = "NotoSansKR-VF.ttf"
         drawtext_filters = []
@@ -227,6 +226,9 @@ def upload_and_generate():
             base_y = bottom_area["y"] + (bottom_area["h"] - line_spacing * num_lines) // 2
         else:
             base_y = 60
+        
+        font_path = "NotoSansKR-VF.ttf"
+        drawtext_filters = []
         
         for idx, sub in enumerate(subtitles):
             y_position = base_y + idx * line_spacing
@@ -247,19 +249,13 @@ def upload_and_generate():
                 f"enable='between(t,{sub['start']},{sub['end']})'"
             )
             drawtext_filters.append(drawtext)
-
         
-        filterchain = (
-            f"[1:v]scale={overlay_width}:{overlay_height}[scaled];"
-            f"[0:v][scaled]overlay={overlay_x}:{overlay_y},"
-            + ",".join(drawtext_filters)
-        )
-
         filter_complex = (
             f"[1:v]scale={overlay_width}:{overlay_height}[scaled];"
             f"[0:v][scaled]overlay={overlay_x}:{overlay_y}," +
             ",".join(drawtext_filters)
         )
+
 
         print("🎯 drawtext filter:", drawtext)
 
