@@ -177,7 +177,7 @@ def upload_and_generate():
         overlay_y = template.get("overlay_y", 0)
         overlay_width = template.get("overlay_width", 1080)
         overlay_height = template.get("overlay_height", 1080)
-        template_image_url = fix_url(template.get("template_image_url"))
+        template_image_url = fix_url(template.get("frame_url"))
 
         # 템플릿 이미지 다운로드
         r_tpl = requests.get(template_image_url)
