@@ -306,6 +306,11 @@ def upload_and_generate():
         process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         stdout, stderr = process.communicate(timeout=180)
 
+        # ✅ stderr 로그 출력
+        print("🧨 FFmpeg STDERR ======================")
+        print(stderr.decode())
+        print("======================================")
+
         if process.returncode != 0:
             return {"error": "FFmpeg failed", "ffmpeg_output": stderr.decode()}, 500
 
