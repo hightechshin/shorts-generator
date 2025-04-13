@@ -270,12 +270,14 @@ def upload_and_generate():
             "-i", template_path,
             "-i", image_path,
             "-i", audio_path,
-            "-filter_complex", filterchain,
+            "-filter_complex",
+            "[1:v]scale=960:1400[scaled];[0:v][scaled]overlay=(W-w)/2:(H-h)/2",
             "-map", "2:a",
-            "-shortest",
-            "-c:v", "libx264", "-preset", "ultrafast",
+            "-shortest", "-c:v", "libx264", "-preset", "ultrafast",
             output_path
         ]
+
+        
         print("🎬 FFmpeg Command:")
         print(" ".join(command))
         print("📏 overlay width, height:", overlay_width, overlay_height)
