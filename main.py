@@ -285,16 +285,17 @@ def upload_and_generate():
 
         command = [
             "ffmpeg", "-y",
-            "-i", template_path,
-            "-i", image_path,
+            "-loop", "1", "-t", str(duration), "-i", template_path,
+            "-loop", "1", "-t", str(duration), "-i", image_path,
             "-i", audio_path,
-            "-filter_complex", filter_complex,  # ← 이건 단 하나
+            "-filter_complex", filter_complex,
             "-map", "2:a",
             "-shortest",
             "-c:v", "libx264",
             "-preset", "ultrafast",
             output_path
         ]
+
 
 
         
