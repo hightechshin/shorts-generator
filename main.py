@@ -211,9 +211,6 @@ def upload_and_generate():
             end = round(start + seconds_per_line, 2)
             subtitles.append({"start": start, "end": end, "text": line})
         
-        # 템플릿 기준 y 위치 설정
-        
-        
         font_path = "NotoSansKR-VF.ttf"
         drawtext_filters = []
         
@@ -222,49 +219,49 @@ def upload_and_generate():
             "drawtext=fontfile='NotoSansKR-VF.ttf':text=' ':"
             "fontcolor=white:fontsize=1:x=10:y=10:enable='between(t,0,0.5)'"
         )
+        
         line_spacing = font_size + 8
         num_lines = len(subtitles)
         
+        # ✅ y 좌표 기준점 계산
         if headline_area:
             base_y = max(overlay_y, headline_area["y"] + (headline_area["h"] - line_spacing * num_lines) // 2)
         elif bottom_area:
             base_y = max(overlay_y, bottom_area["y"] + (bottom_area["h"] - line_spacing * num_lines) // 2)
         else:
-            base_y = overlay_y  # 최소 템플릿 하단보다 아래서 시작
-
-
+            base_y = overlay_y
         
-        font_path = "NotoSansKR-VF.ttf"
-        drawtext_filters = []
-        
+        # ✅ drawtext 필터 생성
         for sub in subtitles:
             wrapped_lines = textwrap.wrap(sub["text"], width=14)  # 공백 포함 기준 14자
             for i, line in enumerate(wrapped_lines):
-                y_position = base_y + i * line_spacing
-                safe_line = line.replace("'", r"\'").replace(",", r"\,")
+                y_position = base_y
+                safe_text = line.replace("'", r"\'").replace(",", r"\,")
                 alpha_expr = (
                     f"if(lt(t,{sub['start']}),0,"
                     f"if(lt(t,{sub['start']}+0.5),(t-{sub['start']})/0.5,"
                     f"if(lt(t,{sub['end']}-0.5),1,(1-(t-{sub['end']}+0.5)/0.5))))"
                 )
-            safe_text = sub['text'].replace("'", r"\'").replace(",", r"\,")
         
-            drawtext = (
-                f"drawtext=fontfile='{font_path}':"
-                f"text='{safe_text}':"
-                f"fontcolor={font_color}:fontsize={font_size}:"
-                f"x=(w-text_w)/2:y={y_position}:"
-                f"alpha='{alpha_expr}':"
-                f"borderw=4:bordercolor=black:box=1:boxcolor={box_color}:boxborderw=20:"
-                f"enable='between(t,{sub['start']},{sub['end']})'"
-            )
-            drawtext_filters.append(drawtext)
+                drawtext = (
+                    f"drawtext=fontfile='{font_path}':"
+                    f"text='{safe_text}':"
+                    f"fontcolor={font_color}:fontsize={font_size}:"
+                    f"x=(w-text_w)/2:y={y_position}:"
+                    f"alpha='{alpha_expr}':"
+                    f"borderw=4:bordercolor=black:box=1:boxcolor={box_color}:boxborderw=20:"
+                    f"enable='between(t,{sub['start']},{sub['end']})'"
+                )
+                drawtext_filters.append(drawtext)
+                base_y += line_spacing  # 다음 줄로 y 위치 이동
         
+        # ✅ 최종 filter_complex 조립
         filter_complex = (
             f"[1:v]scale={overlay_width}:{overlay_height}[scaled];"
             f"[0:v][scaled]overlay={overlay_x}:{overlay_y}," +
             ",".join(drawtext_filters)
         )
+
 
 
         print("🎯 drawtext filter:", drawtext)
