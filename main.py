@@ -156,6 +156,8 @@ def upload_and_generate():
 
         audio = AudioSegment.from_file(audio_path)
         audio_duration = audio.duration_seconds
+        duration = round(audio_duration, 2)  # 🔥 duration 값을 명시적으로 설정
+
 
         # ✅ 템플릿 정보 가져오기
         template_res = requests.get(
@@ -281,7 +283,10 @@ def upload_and_generate():
         print("--------------------------------------------")
       
         print("============================================")
-        
+        audio = AudioSegment.from_file(audio_path)
+        audio_duration = audio.duration_seconds
+        duration = round(audio_duration, 2)  # 🔥 duration 값을 명시적으로 설정
+
 
         command = [
             "ffmpeg", "-y",
