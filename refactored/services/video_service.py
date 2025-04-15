@@ -160,3 +160,80 @@ def handle_upload_and_generate(req):
 
     except Exception as e:
         return {"error": str(e)}, 500
+
+# 📁 services/video_service.py (계속)
+def handle_get_signed_urls(request):
+    from ..utils.supabase_utils import (
+        supabase_get_video_by_uuid,
+        supabase_update_signed_urls,
+        get_signed_url
+    )
+
+    data = request.json
+    uuid = data.get("uuid")
+    user_id = data.get("user_id")
+
+    if not uuid:
+        return {"error": "UUID is required"}, 400
+
+    video_row = supabase_get_video_by_uuid(uuid)
+    if not video_row:
+        return {"error": "Video not found"}, 404
+
+    if user_id != video_row.get("user_id"):
+        return {"error": "Unauthorized access"}, 403
+
+    video_path = video_row.get("video_path")
+    image_path = video_row.get("image_path")
+    audio_path = video_row.get("audio_path")
+    signed_created_at = video_row.get("signed_created_at")
+
+    video_old = video_row.get("video_signed_url")
+    image_old = video_row.get("image_signed_url")
+    audio_old = video_row.get("audio_signed_url")
+
+    needs_refresh = False
+    if not signed_created_at:
+        needs_refresh = True
+    else:
+        try:
+            last_time = datetime.fromisoformat(signed_created_at)
+            if datetime.utcnow() - last_time > timedelta(hours=1):
+                needs_refresh = True
+        except:
+            needs_refresh = True
+
+    if needs_refresh:
+        signed_time = datetime.utcnow().isoformat()
+        video_signed = get_signed_url(video_path)
+        image_signed = get_signed_url(image_path)
+        audio_signed = get_signed_url(audio_path)
+
+        if not all([video_signed, image_signed, audio_signed]):
+            return {"error": "Failed to generate signed URLs"}, 500
+
+        patch_res = supabase_update_signed_urls(uuid, {
+            "signed_created_at": signed_time,
+            "video_signed_url": video_signed,
+            "image_signed_url": image_signed,
+            "audio_signed_url": audio_signed
+        })
+
+        if not patch_res:
+            return {"error": "Failed to update signed URLs in DB"}, 500
+
+        return {
+            "video_url": video_signed,
+            "image_url": image_signed,
+            "audio_url": audio_signed,
+            "signed_created_at": signed_time
+        }, 200
+
+    else:
+        return {
+            "video_url": video_old,
+            "image_url": image_old,
+            "audio_url": audio_old,
+            "signed_created_at": signed_created_at
+        }, 200
+
