@@ -1,7 +1,7 @@
 # 📁 utils/supabase_utils.py
 import os
 import requests
-from config import SUPABASE_UPLOAD, SUPABASE_SERVICE_KEY, SUPABASE_STORAGE, SUPABASE_BUCKET, SUPABASE_REST, TTL_SECONDS
+from ..config import SUPABASE_UPLOAD, SUPABASE_SERVICE_KEY, SUPABASE_STORAGE, SUPABASE_BUCKET, SUPABASE_REST, TTL_SECONDS
 from datetime import datetime, timedelta
 
 def fix_url(url):
