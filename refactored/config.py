@@ -4,6 +4,11 @@ import os
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.append(BASE_DIR)
 
+UPLOAD_FOLDER = "uploads"
+OUTPUT_FOLDER = "outputs"
+os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+os.makedirs(OUTPUT_FOLDER, exist_ok=True)
+
 SUPABASE_BUCKET = "uploads"
 SUPABASE_STORAGE = "https://your.supabase.co/storage/v1"
 SUPABASE_BASE = f"{SUPABASE_STORAGE}/object"
