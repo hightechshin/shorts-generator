@@ -1,5 +1,6 @@
 import textwrap
 
+text = req.form.get("text")  # ✅ 반드시 있어야 함
 lines = textwrap.wrap(text.strip(), width=14)
 seconds_per_line = audio_duration / len(lines)
 # drawtext 생성 함수
