@@ -1,1 +1,0 @@
-# drawtext subtitle 생성 함수용 파일
