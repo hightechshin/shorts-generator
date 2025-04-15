@@ -4,7 +4,7 @@ services:
     env: python
     plan: free
     buildCommand: "apt-get update && apt-get install -y ffmpeg && pip install -r requirements.txt"
-    startCommand: "gunicorn --bind 0.0.0.0:$PORT refactored.app:app"
+    startCommand: "gunicorn --bind 0.0.0.0:$PORT refactored.app:app --workers=1 --threads=1 --timeout=600"
     envVars:
       - key: SUPABASE_SERVICE_ROLE
         sync: false
