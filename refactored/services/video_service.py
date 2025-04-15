@@ -6,7 +6,6 @@ import textwrap
 from datetime import datetime
 from flask import request
 from ..utils.audio_utils import get_audio_duration
-from ..utils.drawtext_utils import generate_drawtext_filters
 from ..utils.supabase_utils import (
     fix_url, upload_to_supabase, get_signed_url, supabase_update_signed_urls
 )
