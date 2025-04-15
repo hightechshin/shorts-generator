@@ -1,8 +1,11 @@
 from flask import Flask
 from .routes.video import video_bp
+from utils.scheduler import start_scheduler  # ✅ 스케줄러 임포트
 
 app = Flask(__name__)
 app.register_blueprint(video_bp)
+
+start_scheduler()  # ✅ 여기에서 한 번만 실행
 
 @app.route("/")
 def home():
