@@ -1,7 +1,7 @@
 import atexit
 from apscheduler.schedulers.background import BackgroundScheduler
 from datetime import datetime
-from .utils.supabase_utils import delete_expired_signed_urls
+from .supabase_utils import delete_expired_signed_urls
 
 def scheduled_cleanup():
     print(f"🧹 TTL cleanup 시작 at {datetime.utcnow().isoformat()}")
