@@ -1,13 +1,7 @@
-import os
-import sys
 import atexit
 from apscheduler.schedulers.background import BackgroundScheduler
 from datetime import datetime
 from ..utils.supabase_utils import delete_expired_signed_urls
-
-# ✅ 강제 경로 추가
-BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-sys.path.append(BASE_DIR)
 
 def scheduled_cleanup():
     print(f"🧹 TTL cleanup 시작 at {datetime.utcnow().isoformat()}")
