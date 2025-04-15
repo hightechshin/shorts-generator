@@ -1,6 +1,6 @@
 from flask import Flask
 from .routes.video import video_bp
-from utils.scheduler import start_scheduler  # ✅ 스케줄러 임포트
+from .utils.scheduler import start_scheduler  # ✅ 스케줄러 임포트
 
 app = Flask(__name__)
 app.register_blueprint(video_bp)
