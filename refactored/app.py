@@ -1,5 +1,5 @@
 from flask import Flask
-from routes.video import video_bp
+from .routes.video import video_bp
 
 app = Flask(__name__)
 app.register_blueprint(video_bp)
