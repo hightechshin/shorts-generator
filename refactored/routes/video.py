@@ -10,7 +10,3 @@ def upload():
 @video_bp.route("/get_signed_urls", methods=["POST"])
 def get_signed():
     return handle_get_signed_urls(request)
-
-@video_bp.route("/cleanup_ttl", methods=["POST"])
-def cleanup():
-    return handle_cleanup_ttl()
