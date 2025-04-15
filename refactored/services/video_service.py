@@ -5,6 +5,7 @@ import requests
 import textwrap
 from datetime import datetime
 from flask import request
+from pydub import AudioSegment
 from ..utils.audio_utils import get_audio_duration
 from ..utils.supabase_utils import (
     fix_url, upload_to_supabase, get_signed_url, supabase_update_signed_urls
