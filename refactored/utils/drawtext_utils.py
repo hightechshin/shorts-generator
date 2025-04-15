@@ -1,5 +1,7 @@
 import textwrap
 
+lines = textwrap.wrap(text.strip(), width=14)
+seconds_per_line = audio_duration / len(lines)
 # drawtext 생성 함수
 subtitles = []
 for i, line in enumerate(lines):
