@@ -5,7 +5,7 @@ from ..logic.route import get_route_estimate
 from ..textgen.route_text_generator import generate_route_description
 from ..services.image_service import get_image_url
 
-from .content_type_rules import get_required_fields_by_type
+from ..content_type_rules import get_required_fields_by_type
 
 def process_parsed_result(parsed: dict, options: dict) -> dict:
     """
