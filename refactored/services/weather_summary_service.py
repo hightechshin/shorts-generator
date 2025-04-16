@@ -1,6 +1,6 @@
 from datetime import datetime
-from .utils.openmeteo_weather import get_openmeteo_forecast
-from .utils.weather_summary_util import summarize_hourly_weather
+from ..utils.openmeteo_weather import get_openmeteo_forecast
+from ..utils.weather_summary_util import summarize_hourly_weather
 
 def generate_weather_summary(lat: float, lon: float, time_iso: str) -> str:
     """
