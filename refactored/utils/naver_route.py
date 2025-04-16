@@ -1,17 +1,25 @@
 import requests
+import os
+
+# 🌱 .env에서 환경변수 불러오기 (Render에서 자동 적용됨)
+NAVER_CLIENT_ID = os.getenv("NAVER_API_CLIENT_ID")
+NAVER_CLIENT_SECRET = os.getenv("NAVER_API_CLIENT_SECRET")
 
 def get_naver_driving_info(
-    start_lat: float, start_lon: float,
-    end_lat: float, end_lon: float,
-    client_id: str,
-    client_secret: str
+    start_lat: float,
+    start_lon: float,
+    end_lat: float,
+    end_lon: float,
+    client_id: str = NAVER_CLIENT_ID,
+    client_secret: str = NAVER_CLIENT_SECRET
 ) -> dict:
     """
     네이버 길찾기 API 호출 → 거리/시간 추정
+    환경변수 기반 client_id, client_secret 자동 연결됨
     """
     url = "https://naveropenapi.apigw.ntruss.com/map-direction/v1/driving"
     params = {
-        "start": f"{start_lon},{start_lat}",
+        "start": f"{start_lon},{start_lat}",  # ⚠️ 경도, 위도 순서
         "goal": f"{end_lon},{end_lat}",
         "option": "trafast"
     }
@@ -37,4 +45,6 @@ def get_naver_driving_info(
         }
 
     except Exception as e:
+        print(f"❌ 네이버 길찾기 API 오류: {e}")
         return {"error": str(e), "status": "fail"}
+
