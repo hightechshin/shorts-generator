@@ -1,6 +1,6 @@
 from flask import Blueprint, request, jsonify
-from controllers.processing_controller import process_parsed_result
-from assemblers.prompt_assembler import assemble_prompt
+from ..controllers.processing_controller import process_parsed_result
+from ..assemblers.prompt_assembler import assemble_prompt
 # from nlp_parser import parse_input_with_gpt  ← 너가 쓰는 파서 함수로 연결
 
 generate_bp = Blueprint("generate", __name__)
