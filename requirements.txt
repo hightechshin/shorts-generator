@@ -8,3 +8,4 @@ gunicorn==22.0.0
 pydub
 psutil
 APScheduler
+python-dateutil
