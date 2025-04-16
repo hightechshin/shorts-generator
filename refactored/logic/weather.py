@@ -1,7 +1,7 @@
 # logic/weather.py
 
-from utils.openmeteo_weather import get_openmeteo_forecast
-from textgen.weather_text_generator import generate_weather_description
+from ..utils.openmeteo_weather import get_openmeteo_forecast
+from ..textgen.weather_text_generator import generate_weather_description
 
 def get_weather_summary(coord: dict, target_time: str) -> dict:
     """
