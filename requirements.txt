@@ -9,3 +9,4 @@ pydub
 psutil
 APScheduler
 python-dateutil
+pytest
