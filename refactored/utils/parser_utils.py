@@ -1,4 +1,5 @@
 import os
+import json
 import requests
 
 def parse_user_prompt(user_input: str) -> dict:
@@ -17,26 +18,30 @@ def parse_user_prompt(user_input: str) -> dict:
     - bottomline: 결론 또는 마무리 문장
 
     문장: "{user_input}"
-    """
+    """.strip()
 
     headers = {
         "Authorization": f"Bearer {os.getenv('OPENAI_API_KEY')}",
         "Content-Type": "application/json"
     }
+
     payload = {
         "model": "gpt-4",
-        "messages": [
-            {"role": "user", "content": prompt}
-        ],
+        "messages": [{"role": "user", "content": prompt}],
         "temperature": 0.3,
         "max_tokens": 500
     }
 
-    res = requests.post("https://api.openai.com/v1/chat/completions",
-                        headers=headers, json=payload)
-    output = res.json()["choices"][0]["message"]["content"]
-
     try:
-        return eval(output)  # GPT가 JSON string을 반환하므로 안전하게 eval
-    except:
-        return {"error": "파싱 실패", "raw": output}
+        res = requests.post("https://api.openai.com/v1/chat/completions",
+                            headers=headers, json=payload)
+        res.raise_for_status()
+        content = res.json().get("choices", [{}])[0].get("message", {}).get("content", "")
+
+        return json.loads(content)
+
+    except json.JSONDecodeError:
+        return {"error": "❌ JSON 파싱 실패", "raw": content}
+    except Exception as e:
+        return {"error": str(e)}
+
