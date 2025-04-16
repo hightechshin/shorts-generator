@@ -3,6 +3,7 @@ from utils.logger import log  # 선택사항
 from logic.weather import get_weather_summary  # 호출 시점에만 import
 from logic.route import get_route_estimate
 from textgen.route_text_generator import generate_route_description
+from services.image_service import get_image_url
 
 from content_type_rules import get_required_fields_by_type
 
@@ -35,12 +36,23 @@ def process_parsed_result(parsed: dict, options: dict) -> dict:
 
         # 수치 → 설명 문장
         weather_text = generate_weather_description(
-            min_temp=weather_data.get("min_temp"),
-            max_temp=weather_data.get("max_temp"),
-            avg_humidity=weather_data.get("avg_humidity"),
-            wind_speed=weather_data.get("wind_speed")
+            min_temp=weather_context.get("min_temp"),
+            max_temp=weather_context.get("max_temp"),
+            avg_humidity=weather_context.get("avg_humidity"),
+            wind_speed=weather_context.get("wind_speed")
         )
+
         results["weather_text"] = weather_text
+
+    image_url = get_image_url(
+        is_paid=options.get("is_paid", False),
+        prompt=parsed.get("headline", "") or "",
+        default_pool=[
+            "https://cdn.example.com/fallback1.jpg",
+            "https://cdn.example.com/fallback2.jpg"
+        ]
+    )
+    results["image_url"] = image_url
 
     # 거리/이동 시간 계산 조건 분기
     if needs.get("need_route") and coord_from and coord_to:
