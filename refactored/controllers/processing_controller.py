@@ -1,9 +1,9 @@
-from utils.logger import log  # 선택사항
+from ..utils.logger import log  # 선택사항
 
-from logic.weather import get_weather_summary  # 호출 시점에만 import
-from logic.route import get_route_estimate
-from textgen.route_text_generator import generate_route_description
-from services.image_service import get_image_url
+from ..logic.weather import get_weather_summary  # 호출 시점에만 import
+from ..logic.route import get_route_estimate
+from ..textgen.route_text_generator import generate_route_description
+from ..services.image_service import get_image_url
 
 from content_type_rules import get_required_fields_by_type
 
