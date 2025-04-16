@@ -1,5 +1,5 @@
 from flask import Blueprint, request, jsonify
-from ..services.route_service import get_route_estimate
+from ..logic.route import get_route_estimate
 
 route_bp = Blueprint("route", __name__)
 
