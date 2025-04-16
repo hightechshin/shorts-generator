@@ -1,5 +1,17 @@
 import sys
 import os
+from dotenv import load_dotenv
+
+load_dotenv()
+
+ELEVENLABS_API_KEY = os.getenv("ELEVENLABS_API_KEY")
+NAVER_API_CLIENT_ID = os.getenv("NAVER_API_CLIENT_ID")
+NAVER_API_CLIENT_SECRET = os.getenv("NAVER_API_CLIENT_SECRET")
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+
+SUPABASE_URL = os.getenv("SUPABASE_URL")
+SUPABASE_BUCKET = os.getenv("SUPABASE_BUCKET")
+SUPABASE_SERVICE_ROLE = os.getenv("SUPABASE_SERVICE_ROLE")
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.append(BASE_DIR)
