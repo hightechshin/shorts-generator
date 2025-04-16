@@ -1,9 +1,9 @@
 from flask import Flask
 from .routes.video import video_bp
 from .utils.scheduler import start_scheduler  # ✅ 스케줄러 임포트
-from routes.weather import weather_bp
-from routes.route import route_bp
-from routes.generate import generate_bp
+from .routes.weather import weather_bp
+from .routes.route import route_bp
+from .routes.generate import generate_bp
 
 app = Flask(__name__)
 
