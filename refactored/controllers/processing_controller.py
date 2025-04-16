@@ -33,6 +33,15 @@ def process_parsed_result(parsed: dict, options: dict) -> dict:
         weather_context = get_weather_summary(coord_from, target_time)
         results["weather_summary"] = weather_context
 
+        # 수치 → 설명 문장
+        weather_text = generate_weather_description(
+            min_temp=weather_data.get("min_temp"),
+            max_temp=weather_data.get("max_temp"),
+            avg_humidity=weather_data.get("avg_humidity"),
+            wind_speed=weather_data.get("wind_speed")
+        )
+        results["weather_text"] = weather_text
+
     # 거리/이동 시간 계산 조건 분기
     if needs.get("need_route") and coord_from and coord_to:
         log("🛣 경로 계산 시작")
